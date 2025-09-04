@@ -8,8 +8,7 @@ const Category = () => {
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState({
     name: '',
-    image: null,
-    date: new Date().toISOString().split('T')[0] // Default to today's date
+    image: null
   });
   const [imagePreview, setImagePreview] = useState(null);
   const [imageFile, setImageFile] = useState(null);
@@ -63,7 +62,7 @@ const Category = () => {
         setLoading(true);
         const newCategory = await categoryService.add(formData, imageFile);
         setCategories(prev => [newCategory, ...prev]);
-        setFormData({ name: '', image: null, date: new Date().toISOString().split('T')[0] });
+        setFormData({ name: '', image: null });
         setImagePreview(null);
         setImageFile(null);
         setIsModalOpen(false);
@@ -77,7 +76,7 @@ const Category = () => {
   };
 
   const handleCancel = () => {
-    setFormData({ name: '', image: null, date: new Date().toISOString().split('T')[0] });
+    setFormData({ name: '', image: null });
     setImagePreview(null);
     setImageFile(null);
     setIsModalOpen(false);
@@ -132,54 +131,42 @@ const Category = () => {
           <table className="w-full">
             <thead className="bg-gray-700">
               <tr>
-                <th className="px-6 py-4 text-left text-sm font-medium text-gray-300">Category Name</th>
-                <th className="px-6 py-4 text-left text-sm font-medium text-gray-300">Image</th>
-                <th className="px-6 py-4 text-left text-sm font-medium text-gray-300">Edit</th>
-                <th className="px-6 py-4 text-left text-sm font-medium text-gray-300">Delete</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Category Name</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Image</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Edit</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Delete</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="4" className="px-6 py-12 text-center text-gray-400">
-                    Loading categories...
-                  </td>
+                  <td colSpan="4" className="px-6 py-4 text-center text-gray-400">Loading categories...</td>
                 </tr>
               ) : categories.length === 0 ? (
                 <tr>
-                  <td colSpan="4" className="px-6 py-12 text-center text-gray-400">
-                    No categories available
-                  </td>
+                  <td colSpan="4" className="px-6 py-4 text-center text-gray-400">No categories found</td>
                 </tr>
               ) : (
                 categories.map((category) => (
-                  <tr key={category.id} className="border-t border-gray-700">
-                    <td className="px-6 py-4 text-white">{category.name}</td>
-                    <td className="px-6 py-4">
-                      {category.image ? (
-                        <img 
-                          src={category.image} 
-                          alt={category.name}
-                          className="w-10 h-10 rounded-lg object-cover"
-                        />
-                      ) : (
-                        <div className="w-10 h-10 bg-gray-600 rounded-lg flex items-center justify-center">
-                          <Camera size={16} className="text-gray-400" />
-                        </div>
-                      )}
+                  <tr key={category.id} className="border-b border-gray-700">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{category.name}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <img src={category.image} alt={category.name} className="h-10 w-10 rounded-full" />
                     </td>
-                    <td className="px-6 py-4">
-                      <button className="text-blue-400 hover:text-blue-300 p-1">
-                        <Edit size={16} />
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <button
+                        onClick={() => handleEdit(category)}
+                        className="text-indigo-400 hover:text-indigo-300 mr-4"
+                      >
+                        Edit
                       </button>
                     </td>
-                    <td className="px-6 py-4">
-                      <button 
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <button
                         onClick={() => handleDelete(category.id)}
-                        className="text-red-400 hover:text-red-300 p-1"
-                        disabled={loading}
+                        className="text-red-400 hover:text-red-300"
                       >
-                        <Trash2 size={16} />
+                        Delete
                       </button>
                     </td>
                   </tr>
@@ -261,20 +248,7 @@ const Category = () => {
                 />
               </div>
               
-              {/* Date */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Date *
-                </label>
-                <input
-                  type="date"
-                  name="date"
-                  value={formData.date}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                />
-              </div>
+
               
               {/* Buttons */}
               <div className="flex space-x-4 pt-4">

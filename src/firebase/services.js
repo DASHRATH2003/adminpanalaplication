@@ -43,21 +43,20 @@ export const categoryService = {
         imageUrl = await getDownloadURL(snapshot.ref);
       }
 
+      // Generate a unique ID for the category
+      const generatedId = `CAT_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
       const docRef = await addDoc(collection(db, 'category'), {
+        id: generatedId,
         name: categoryData.name,
-        image: imageUrl,
-        date: categoryData.date,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+        image: imageUrl
       });
 
       return {
         id: docRef.id,
+        categoryId: generatedId,
         name: categoryData.name,
-        image: imageUrl,
-        date: categoryData.date,
-        createdAt: new Date(),
-        updatedAt: new Date()
+        image: imageUrl
       };
     } catch (error) {
       console.error('Error adding category:', error);

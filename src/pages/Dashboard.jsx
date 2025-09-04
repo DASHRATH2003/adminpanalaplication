@@ -12,8 +12,7 @@ const Dashboard = () => {
   const [isAddCategoryModalOpen, setIsAddCategoryModalOpen] = useState(false);
   const [categoryFormData, setCategoryFormData] = useState({
     name: '',
-    image: null,
-    date: new Date().toISOString().split('T')[0]
+    image: null
   });
   const [categoryImagePreview, setCategoryImagePreview] = useState(null);
   const [categoryImageFile, setCategoryImageFile] = useState(null);
@@ -272,7 +271,7 @@ const Dashboard = () => {
         setLoading(true);
         const newCategory = await categoryService.add(categoryFormData, categoryImageFile);
         setCategories(prev => [newCategory, ...prev]);
-        setCategoryFormData({ name: '', image: null, date: new Date().toISOString().split('T')[0] });
+        setCategoryFormData({ name: '', image: null });
         setCategoryImagePreview(null);
         setCategoryImageFile(null);
         setIsAddCategoryModalOpen(false);
@@ -286,7 +285,7 @@ const Dashboard = () => {
   };
 
   const handleCategoryCancel = () => {
-    setCategoryFormData({ name: '', image: null, date: new Date().toISOString().split('T')[0] });
+    setCategoryFormData({ name: '', image: null });
     setCategoryImagePreview(null);
     setCategoryImageFile(null);
     setIsAddCategoryModalOpen(false);
@@ -815,21 +814,7 @@ const Dashboard = () => {
                 />
               </div>
               
-              {/* Date */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Date *
-                </label>
-                <input
-                  type="date"
-                  name="date"
-                  value={categoryFormData.date}
-                  onChange={handleCategoryInputChange}
-                  className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                  disabled={loading}
-                />
-              </div>
+
               
               {/* Buttons */}
               <div className="flex space-x-4 pt-4">
