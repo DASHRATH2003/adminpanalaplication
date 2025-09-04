@@ -379,7 +379,7 @@ const Dashboard = () => {
   ];
 
   return (
-    <div className="p-3 md:p-6 bg-gray-900 min-h-screen md:ml-64 flex flex-col lg:flex-row gap-3 md:gap-6">
+    <div className="p-3 md:p-6 bg-gray-900 min-h-screen flex flex-col lg:flex-row gap-3 md:gap-6">
       {/* Main Content - Products Section */}
       <div className="flex-1 min-w-0">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">

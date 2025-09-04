@@ -85,7 +85,7 @@ const SubCategory = () => {
   };
 
   return (
-    <div className="p-6 bg-gray-900 min-h-screen ml-64">
+    <div className="p-4 lg:p-6 bg-gray-900 min-h-screen">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-semibold text-white">Sub Category</h2>
         <div className="flex items-center space-x-3">

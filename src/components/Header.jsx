@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Search, ChevronDown, User, LogOut, Settings, UserCircle } from 'lucide-react';
+import { Search, ChevronDown, User, LogOut, UserCircle, Menu } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-const Header = () => {
+const Header = ({ onToggleSidebar }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const navigate = useNavigate();
 
@@ -15,24 +15,30 @@ const Header = () => {
   };
 
   return (
-    <header className="bg-gray-800 text-white px-6 py-4 ml-64">
+    <header className="bg-gray-800 text-white px-4 lg:px-6 py-4">
       <div className="flex items-center justify-between">
-        {/* Page Title */}
-        <div>
-          <h1 className="text-2xl font-semibold">Dashboard</h1>
+        {/* Mobile Menu Button & Page Title */}
+        <div className="flex items-center space-x-4">
+          <button 
+            onClick={onToggleSidebar}
+            className="lg:hidden p-2 rounded-md hover:bg-gray-700 transition-colors"
+          >
+            <Menu size={20} />
+          </button>
+          <h1 className="text-xl lg:text-2xl font-semibold">Dashboard</h1>
         </div>
 
         {/* Search and User Profile */}
         <div className="flex items-center space-x-6">
           {/* Search Bar */}
-          <div className="relative">
+          <div className="relative hidden md:block">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <Search className="h-5 w-5 text-gray-400" />
             </div>
             <input
               type="text"
               placeholder="Search"
-              className="bg-gray-700 text-white placeholder-gray-400 pl-10 pr-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-80"
+              className="bg-gray-700 text-white placeholder-gray-400 pl-10 pr-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-60 lg:w-80"
             />
           </div>
 
@@ -45,8 +51,8 @@ const Header = () => {
               <div className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center">
                 <User size={18} className="text-white" />
               </div>
-              <span className="font-medium">DrDisagree</span>
-              <ChevronDown size={16} className={`text-gray-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+              <span className="font-medium hidden sm:block">DrDisagree</span>
+              <ChevronDown size={16} className={`text-gray-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''} hidden sm:block`} />
             </div>
 
             {/* Dropdown Menu */}
@@ -58,14 +64,15 @@ const Header = () => {
                     <p className="text-xs text-gray-400">admin@shop.com</p>
                   </div>
                   
-                  <button className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-600 hover:text-white flex items-center space-x-2">
+                  <button 
+                    onClick={() => {
+                      navigate('/profile');
+                      setIsDropdownOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-600 hover:text-white flex items-center space-x-2"
+                  >
                     <UserCircle size={16} />
                     <span>Profile</span>
-                  </button>
-                  
-                  <button className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-600 hover:text-white flex items-center space-x-2">
-                    <Settings size={16} />
-                    <span>Settings</span>
                   </button>
                   
                   <div className="border-t border-gray-600 mt-2 pt-2">

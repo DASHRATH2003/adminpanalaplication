@@ -13,7 +13,7 @@ const Profile = () => {
   };
 
   return (
-    <div className="p-6 bg-gray-900 min-h-screen ml-64">
+    <div className="p-4 lg:p-6 bg-gray-900 min-h-screen">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
