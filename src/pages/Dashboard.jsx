@@ -24,12 +24,28 @@ const Dashboard = () => {
     offerPrice: '',
     cashOnDelivery: 'no'
   });
-  const [categoryImagePreview, setCategoryImagePreview] = useState(null);
-  const [categoryImageFile, setCategoryImageFile] = useState(null);
+  const [categoryImagePreview, setCategoryImagePreview] = useState([]);
+  const [categoryImageFiles, setCategoryImageFiles] = useState([]);
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [subCategories, setSubCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showAttributeDropdown, setShowAttributeDropdown] = useState(false);
+  
+  // Predefined attributes list
+  const predefinedAttributes = [
+    "Color", "Material", "Fit", "Pattern", "Sleeve Type", "Care Instruction (Machine wash, Hand wash)",
+    "Model", "Color", "Ram", "Storage", "Battery", "Camera", "Processor", "Display", "OS", "Connectivity", "Warranty",
+    "Model", "Graphics (Integrated / Dedicated)", "Ram", "Storage", "Battery", "Camera", "Processor", "Display", "OS", "Connectivity", "Warranty", "Operating System", "Port", "Weight", "Warranty",
+    "Model", "Screen Size", "Resolution (2K, 4K, etc.)", "Display Type", "Smart Features (Yes, No)", "Connectivity", "Warranty",
+    "Material", "Color", "Dimension (L x W x H)", "Weight Capacity", "Assembly (Yes, No)", "Style", "Room Type (Bedroom, Living Room)", "Warranty",
+    "Shade", "Color", "Type (Cream, Serum,Powder, Oil, Shampoo, etc.)", "Ingredients (Natural, Chemical, Herbal)", "Skin/Hair Type (Oily, Dry, Sensitive, All Type)", "Vegan/Volume", "Expiry Date", "Dermatologically Tested (Yes/No)",
+    "Material (Gold, Silver, Platinum, Artificial, Diamond)", "Purity (8k, 22k, 24kt)", "Weight", "Color", "Stone (Fine Size, Chain Length, etc.)", "Gemstone (Diamond, Ruby, Emerald, etc.)", "Certification (BIS Hallmark, IGI, GIA, etc.)", "Occasion (Daily, Wedding, Party)",
+    "Title", "Author", "Publisher", "Edition", "Language", "ISBN", "Pages", "Binding (Paperback, Hardcover)", "Genre (Fiction, Non-Fiction, Academic, etc.)",
+    "Title", "Author", "Publisher", "Edition", "Language", "ISBN", "Pages", "Binding (Paperback, Hardcover)", "Genre (Fiction, Non-Fiction, Academic, etc.)",
+    "Weight/Volume", "Quantity (1 Pack, 2 Pack)", "Organic/Non Organic", "Expiry Date", "Storage Instructions", "Dietary Preference (Vegan, Gluten-Free, etc.)", "Nutritional Info",
+    "Material", "Color", "Dimension (L x W x H)", "Weight Capacity", "Assembly (Yes, No)", "Style", "Room Type (Bedroom, Living Room)", "Warranty"
+  ];
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
@@ -45,6 +61,20 @@ const Dashboard = () => {
   useEffect(() => {
     fetchAllData();
   }, []);
+
+  // Close attribute dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showAttributeDropdown && !event.target.closest('.attribute-dropdown-container')) {
+        setShowAttributeDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showAttributeDropdown]);
 
   const fetchAllData = async () => {
     try {
@@ -257,21 +287,47 @@ const Dashboard = () => {
     }));
   };
 
+  const handleAttributeSelect = (attribute) => {
+    const currentAttributes = categoryFormData.attribute;
+    const newAttribute = currentAttributes ? `${currentAttributes}, ${attribute}` : attribute;
+    setCategoryFormData(prev => ({
+      ...prev,
+      attribute: newAttribute
+    }));
+    setShowAttributeDropdown(false);
+  };
+
+  const handleAttributeInputClick = () => {
+    setShowAttributeDropdown(!showAttributeDropdown);
+  };
+
   const handleCategoryImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setCategoryImageFile(file);
+    const files = Array.from(e.target.files);
+    if (files.length > 0) {
+      setCategoryImageFiles(prev => [...prev, ...files]);
       setCategoryFormData(prev => ({
         ...prev,
-        image: file
+        images: [...(prev.images || []), ...files]
       }));
       
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setCategoryImagePreview(reader.result);
-      };
-      reader.readAsDataURL(file);
+      // Generate previews for new files
+      files.forEach(file => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setCategoryImagePreview(prev => [...prev, reader.result]);
+        };
+        reader.readAsDataURL(file);
+      });
     }
+  };
+
+  const removeImage = (index) => {
+    setCategoryImageFiles(prev => prev.filter((_, i) => i !== index));
+    setCategoryImagePreview(prev => prev.filter((_, i) => i !== index));
+    setCategoryFormData(prev => ({
+      ...prev,
+      images: prev.images?.filter((_, i) => i !== index) || []
+    }));
   };
 
   const handleCategorySubmit = async (e) => {
@@ -296,11 +352,11 @@ const Dashboard = () => {
           date: new Date().toISOString().split('T')[0]
         };
         
-        const newProduct = await productService.add(productData, categoryImageFile);
+        const newProduct = await productService.add(productData, categoryImageFiles);
         setProducts(prev => [newProduct, ...prev]);
         setCategoryFormData({ 
           name: '', 
-          image: null,
+          images: [],
           description: '',
           price: '',
           brand: '',
@@ -312,8 +368,8 @@ const Dashboard = () => {
           offerPrice: '',
           cashOnDelivery: 'no'
         });
-        setCategoryImagePreview(null);
-        setCategoryImageFile(null);
+        setCategoryImagePreview([]);
+        setCategoryImageFiles([]);
         setIsAddCategoryModalOpen(false);
         alert('Product added successfully!');
       } catch (error) {
@@ -328,7 +384,7 @@ const Dashboard = () => {
   const handleCategoryCancel = () => {
     setCategoryFormData({ 
       name: '', 
-      image: null,
+      images: [],
       description: '',
       price: '',
       brand: '',
@@ -340,8 +396,8 @@ const Dashboard = () => {
       offerPrice: '',
       cashOnDelivery: 'no'
     });
-    setCategoryImagePreview(null);
-    setCategoryImageFile(null);
+    setCategoryImagePreview([]);
+    setCategoryImageFiles([]);
     setIsAddCategoryModalOpen(false);
   };
 
@@ -824,24 +880,45 @@ const Dashboard = () => {
               {/* Image Upload */}
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-300 mb-3">
-                  Product Image
+                  Product Images
                 </label>
+                
+                {/* Image Previews */}
+                {categoryImagePreview.length > 0 && (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                    {categoryImagePreview.map((preview, index) => (
+                      <div key={index} className="relative group">
+                        <img 
+                          src={preview} 
+                          alt={`Preview ${index + 1}`} 
+                          className="w-full h-24 object-cover rounded-lg border border-gray-600"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeImage(index)}
+                          className="absolute top-1 right-1 bg-red-600 hover:bg-red-700 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                          disabled={loading}
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {/* Upload Area */}
                 <div className="flex justify-center">
                   <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-600 border-dashed rounded-lg cursor-pointer bg-gray-700 hover:bg-gray-600 transition-colors">
                     <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                      {categoryImagePreview ? (
-                        <img src={categoryImagePreview} alt="Preview" className="w-20 h-20 object-cover rounded-lg" />
-                      ) : (
-                        <>
-                          <Camera className="w-8 h-8 mb-2 text-gray-400" />
-                          <p className="text-sm text-gray-400">Upload Product Image</p>
-                        </>
-                      )}
+                      <Camera className="w-8 h-8 mb-2 text-gray-400" />
+                      <p className="text-sm text-gray-400">Upload Product Images</p>
+                      <p className="text-xs text-gray-500 mt-1">Select multiple images</p>
                     </div>
                     <input 
                       type="file" 
                       className="hidden" 
                       accept="image/*"
+                      multiple
                       onChange={handleCategoryImageChange}
                       disabled={loading}
                     />
@@ -978,19 +1055,38 @@ const Dashboard = () => {
                 </div>
 
                 {/* Attribute */}
-                <div className="mb-4">
+                <div className="mb-4 relative attribute-dropdown-container">
                   <label className="block text-sm font-medium text-gray-300 mb-2">
                     Attribute
                   </label>
-                  <input
-                    type="text"
-                    name="attribute"
-                    value={categoryFormData.attribute}
-                    onChange={handleCategoryInputChange}
-                    placeholder="Enter product attributes"
-                    className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    disabled={loading}
-                  />
+                  <div className="relative">
+                    <input
+                      type="text"
+                      name="attribute"
+                      value={categoryFormData.attribute}
+                      onChange={handleCategoryInputChange}
+                      onClick={handleAttributeInputClick}
+                      placeholder="Click to select or enter product attributes"
+                      className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent cursor-pointer"
+                      disabled={loading}
+                    />
+                    {showAttributeDropdown && (
+                      <div className="absolute z-10 w-full mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                        <div className="p-2">
+                          <div className="text-xs text-gray-400 mb-2 font-medium">Select attributes (click to add):</div>
+                          {predefinedAttributes.map((attribute, index) => (
+                            <div
+                              key={index}
+                              onClick={() => handleAttributeSelect(attribute)}
+                              className="px-3 py-2 text-sm text-white hover:bg-gray-600 cursor-pointer rounded transition-colors"
+                            >
+                              {attribute}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Stock */}

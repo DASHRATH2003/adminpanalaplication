@@ -109,15 +109,19 @@ export const productService = {
   },
 
   // Add new product
-  async add(productData, imageFile) {
+  async add(productData, imageFiles) {
     try {
-      let imageUrl = null;
+      let imageUrls = [];
       
-      // Upload image if provided
-      if (imageFile) {
-        const imageRef = ref(storage, `products/${Date.now()}_${imageFile.name}`);
-        const snapshot = await uploadBytes(imageRef, imageFile);
-        imageUrl = await getDownloadURL(snapshot.ref);
+      // Upload multiple images if provided
+      if (imageFiles && imageFiles.length > 0) {
+        for (let i = 0; i < imageFiles.length; i++) {
+          const imageFile = imageFiles[i];
+          const imageRef = ref(storage, `products/${Date.now()}_${i}_${imageFile.name}`);
+          const snapshot = await uploadBytes(imageRef, imageFile);
+          const imageUrl = await getDownloadURL(snapshot.ref);
+          imageUrls.push(imageUrl);
+        }
       }
 
       const docRef = await addDoc(collection(db, 'products'), {
@@ -133,7 +137,8 @@ export const productService = {
         sku: productData.sku || '',
         cashOnDelivery: productData.cashOnDelivery || 'no',
         date: productData.date || new Date().toISOString().split('T')[0],
-        image: imageUrl,
+        images: imageUrls,
+        image: imageUrls[0] || null, // Keep backward compatibility
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
@@ -152,7 +157,8 @@ export const productService = {
         sku: productData.sku || '',
         cashOnDelivery: productData.cashOnDelivery || 'no',
         date: productData.date || new Date().toISOString().split('T')[0],
-        image: imageUrl,
+        images: imageUrls,
+        image: imageUrls[0] || null,
         createdAt: new Date(),
         updatedAt: new Date()
       };
@@ -173,16 +179,22 @@ export const productService = {
   },
 
   // Update product
-  async update(productId, productData, imageFile) {
+  async update(productId, productData, imageFiles) {
     try {
       let updateData = { ...productData };
       
-      // Upload new image if provided
-      if (imageFile) {
-        const imageRef = ref(storage, `products/${Date.now()}_${imageFile.name}`);
-        const snapshot = await uploadBytes(imageRef, imageFile);
-        const imageUrl = await getDownloadURL(snapshot.ref);
-        updateData.image = imageUrl;
+      // Upload new images if provided
+      if (imageFiles && imageFiles.length > 0) {
+        let imageUrls = [];
+        for (let i = 0; i < imageFiles.length; i++) {
+          const imageFile = imageFiles[i];
+          const imageRef = ref(storage, `products/${Date.now()}_${i}_${imageFile.name}`);
+          const snapshot = await uploadBytes(imageRef, imageFile);
+          const imageUrl = await getDownloadURL(snapshot.ref);
+          imageUrls.push(imageUrl);
+        }
+        updateData.images = imageUrls;
+        updateData.image = imageUrls[0] || null; // Keep backward compatibility
       }
       
       await updateDoc(doc(db, 'products', productId), {
