@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import Papa from 'papaparse';
+import * as XLSX from 'xlsx';
 import { X, Upload, Download, FileText, AlertCircle, CheckCircle, Loader } from 'lucide-react';
 
 const BulkUpload = ({ isOpen, onClose, onUpload, categories, subCategories }) => {
@@ -33,21 +34,63 @@ const BulkUpload = ({ isOpen, onClose, onUpload, categories, subCategories }) =>
   const parseFile = (file) => {
     setIsProcessing(true);
     
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (results) => {
-        console.log('Parsed data:', results.data);
-        console.log('Available categories:', categories);
-        console.log('Available subcategories:', subCategories);
-        validateData(results.data);
-        setIsProcessing(false);
-      },
-      error: (error) => {
-        setErrors([`File parsing error: ${error.message}`]);
-        setIsProcessing(false);
-      }
-    });
+    const fileExtension = file.name.split('.').pop().toLowerCase();
+    
+    if (fileExtension === 'csv') {
+      // Parse CSV file
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          console.log('Parsed data:', results.data);
+          console.log('Available categories:', categories);
+          console.log('Available subcategories:', subCategories);
+          validateData(results.data);
+          setIsProcessing(false);
+        },
+        error: (error) => {
+          setErrors([`File parsing error: ${error.message}`]);
+          setIsProcessing(false);
+        }
+      });
+    } else if (['xlsx', 'xls'].includes(fileExtension)) {
+      // Parse Excel file
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const sheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+          
+          // Convert to object format with headers
+          if (jsonData.length > 0) {
+            const headers = jsonData[0];
+            const rows = jsonData.slice(1);
+            const parsedData = rows.map(row => {
+              const obj = {};
+              headers.forEach((header, index) => {
+                obj[header] = row[index] || '';
+              });
+              return obj;
+            }).filter(row => Object.values(row).some(val => val !== ''));
+            
+            console.log('Parsed Excel data:', parsedData);
+            console.log('Available categories:', categories);
+            console.log('Available subcategories:', subCategories);
+            validateData(parsedData);
+          } else {
+            setErrors(['Excel file is empty']);
+          }
+          setIsProcessing(false);
+        } catch (error) {
+          setErrors([`Excel parsing error: ${error.message}`]);
+          setIsProcessing(false);
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
   };
 
   const validateData = (data) => {
@@ -242,16 +285,47 @@ const BulkUpload = ({ isOpen, onClose, onUpload, categories, subCategories }) =>
       }
     ];
 
-    const csv = Papa.unparse(templateData);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', 'bulk_upload_template.csv');
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    try {
+      // Create Excel workbook and worksheet
+      const workbook = XLSX.utils.book_new();
+      const worksheet = XLSX.utils.json_to_sheet(templateData);
+      
+      // Add worksheet to workbook
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Products');
+      
+      // Generate Excel buffer
+      const excelBuffer = XLSX.write(workbook, {
+        bookType: 'xlsx',
+        type: 'array'
+      });
+      
+      // Create blob and download
+      const blob = new Blob([excelBuffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      });
+      
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'bulk_upload_template.xlsx';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error generating Excel file:', error);
+      // Fallback to CSV if Excel generation fails
+      const csvContent = Papa.unparse(templateData);
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'bulk_upload_template.csv';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    }
   };
 
   const handleClose = () => {
@@ -283,7 +357,7 @@ const BulkUpload = ({ isOpen, onClose, onUpload, categories, subCategories }) =>
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div>
             <h2 className="text-2xl font-bold text-gray-900">Bulk Product Upload</h2>
-            <p className="text-sm text-gray-600 mt-1">Upload multiple products using CSV file</p>
+            <p className="text-sm text-gray-600 mt-1">Upload multiple products using Excel or CSV file</p>
           </div>
           <button
             onClick={handleClose}
@@ -302,10 +376,10 @@ const BulkUpload = ({ isOpen, onClose, onUpload, categories, subCategories }) =>
               className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
             >
               <Download className="w-4 h-4" />
-              Download CSV Template
+              Download Excel Template
             </button>
             <p className="text-sm text-gray-600 mt-2">
-              First download the template and fill your product data
+              First download the Excel template and fill your product data
             </p>
           </div>
 
@@ -331,10 +405,10 @@ const BulkUpload = ({ isOpen, onClose, onUpload, categories, subCategories }) =>
               <div>
                 <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                 <p className="text-lg font-medium text-gray-700 mb-2">
-                  Drop your CSV file here
+                  Drop your Excel file here
                 </p>
                 <p className="text-sm text-gray-500 mb-4">
-                  or click to select file
+                  or click to select file (Excel/CSV supported)
                 </p>
                 <button
                   onClick={() => fileInputRef.current?.click()}
