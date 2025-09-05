@@ -32,20 +32,26 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [showAttributeDropdown, setShowAttributeDropdown] = useState(false);
   
-  // Predefined attributes list
+  // Category-specific attributes mapping
+  const categoryAttributes = {
+    "Clothing": ["Color", "Material", "Fit", "Pattern", "Sleeve Type", "Care Instruction (Machine wash, Hand wash)"],
+    "Mobile": ["Model", "Color", "Ram", "Storage", "Battery", "Camera", "Processor", "Display", "OS", "Connectivity", "Warranty"],
+    "Laptop": ["Model", "Graphics (Integrated / Dedicated)", "Ram", "Storage", "Battery", "Camera", "Processor", "Display", "OS", "Connectivity", "Warranty", "Operating System", "Port", "Weight", "Warranty"],
+    "TV": ["Model", "Screen Size", "Resolution (2K, 4K, etc.)", "Display Type", "Smart Features (Yes, No)", "Connectivity", "Warranty"],
+    "Furniture": ["Material", "Color", "Dimension (L x W x H)", "Weight Capacity", "Assembly (Yes, No)", "Style", "Room Type (Bedroom, Living Room)", "Warranty"],
+    "Beauty": ["Shade", "Color", "Type (Cream, Serum,Powder, Oil, Shampoo, etc.)", "Ingredients (Natural, Chemical, Herbal)", "Skin/Hair Type (Oily, Dry, Sensitive, All Type)", "Vegan/Volume", "Expiry Date", "Dermatologically Tested (Yes/No)"],
+    "Jewelry": ["Material (Gold, Silver, Platinum, Artificial, Diamond)", "Purity (8k, 22k, 24kt)", "Weight", "Color", "Stone (Fine Size, Chain Length, etc.)", "Gemstone (Diamond, Ruby, Emerald, etc.)", "Certification (BIS Hallmark, IGI, GIA, etc.)", "Occasion (Daily, Wedding, Party)"],
+    "Books": ["Title", "Author", "Publisher", "Edition", "Language", "ISBN", "Pages", "Binding (Paperback, Hardcover)", "Genre (Fiction, Non-Fiction, Academic, etc.)"],
+    "Book": ["Title", "Author", "Publisher", "Edition", "Language", "ISBN", "Pages", "Binding (Paperback, Hardcover)", "Genre (Fiction, Non-Fiction, Academic, etc.)"],
+    "Stationery": ["Title", "Author", "Publisher", "Edition", "Language", "ISBN", "Pages", "Binding (Paperback, Hardcover)", "Genre (Fiction, Non-Fiction, Academic, etc.)"],
+    "Grocery": ["Weight/Volume", "Quantity (1 Pack, 2 Pack)", "Organic/Non Organic", "Expiry Date", "Storage Instructions", "Dietary Preference (Vegan, Gluten-Free, etc.)", "Nutritional Info"],
+    "Home Decor": ["Material", "Color", "Dimension (L x W x H)", "Weight Capacity", "Assembly (Yes, No)", "Style", "Room Type (Bedroom, Living Room)", "Warranty"]
+  };
+  
+  // Default attributes list for fallback
   const predefinedAttributes = [
-    "Color", "Material", "Fit", "Pattern", "Sleeve Type", "Care Instruction (Machine wash, Hand wash)",
-    "Model", "Color", "Ram", "Storage", "Battery", "Camera", "Processor", "Display", "OS", "Connectivity", "Warranty",
-    "Model", "Graphics (Integrated / Dedicated)", "Ram", "Storage", "Battery", "Camera", "Processor", "Display", "OS", "Connectivity", "Warranty", "Operating System", "Port", "Weight", "Warranty",
-    "Model", "Screen Size", "Resolution (2K, 4K, etc.)", "Display Type", "Smart Features (Yes, No)", "Connectivity", "Warranty",
-    "Material", "Color", "Dimension (L x W x H)", "Weight Capacity", "Assembly (Yes, No)", "Style", "Room Type (Bedroom, Living Room)", "Warranty",
-    "Shade", "Color", "Type (Cream, Serum,Powder, Oil, Shampoo, etc.)", "Ingredients (Natural, Chemical, Herbal)", "Skin/Hair Type (Oily, Dry, Sensitive, All Type)", "Vegan/Volume", "Expiry Date", "Dermatologically Tested (Yes/No)",
-    "Material (Gold, Silver, Platinum, Artificial, Diamond)", "Purity (8k, 22k, 24kt)", "Weight", "Color", "Stone (Fine Size, Chain Length, etc.)", "Gemstone (Diamond, Ruby, Emerald, etc.)", "Certification (BIS Hallmark, IGI, GIA, etc.)", "Occasion (Daily, Wedding, Party)",
-    "Title", "Author", "Publisher", "Edition", "Language", "ISBN", "Pages", "Binding (Paperback, Hardcover)", "Genre (Fiction, Non-Fiction, Academic, etc.)",
-    "Title", "Author", "Publisher", "Edition", "Language", "ISBN", "Pages", "Binding (Paperback, Hardcover)", "Genre (Fiction, Non-Fiction, Academic, etc.)",
-    "Weight/Volume", "Quantity (1 Pack, 2 Pack)", "Organic/Non Organic", "Expiry Date", "Storage Instructions", "Dietary Preference (Vegan, Gluten-Free, etc.)", "Nutritional Info",
-    "Material", "Color", "Dimension (L x W x H)", "Weight Capacity", "Assembly (Yes, No)", "Style", "Room Type (Bedroom, Living Room)", "Warranty"
-  ];
+    ...Object.values(categoryAttributes).flat()
+  ].filter((value, index, self) => self.indexOf(value) === index); // Remove duplicates
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
@@ -281,24 +287,62 @@ const Dashboard = () => {
   // Category form handlers
   const handleCategoryInputChange = (e) => {
     const { name, value } = e.target;
+    
+    // Update form data with the new value
     setCategoryFormData(prev => ({
       ...prev,
       [name]: value
     }));
+    
+    // If category changed, reset attribute field
+    if (name === 'category') {
+      setCategoryFormData(prev => ({
+        ...prev,
+        attribute: ''
+      }));
+    }
   };
 
   const handleAttributeSelect = (attribute) => {
-    const currentAttributes = categoryFormData.attribute;
-    const newAttribute = currentAttributes ? `${currentAttributes}, ${attribute}` : attribute;
-    setCategoryFormData(prev => ({
-      ...prev,
-      attribute: newAttribute
-    }));
+    // Only add attribute if it belongs to the selected category
+    if (isAttributeValidForCategory(attribute, categoryFormData.category)) {
+      const currentAttributes = categoryFormData.attribute;
+      const newAttribute = currentAttributes ? `${currentAttributes}, ${attribute}` : attribute;
+      setCategoryFormData(prev => ({
+        ...prev,
+        attribute: newAttribute
+      }));
+    } else {
+      alert(`The attribute "${attribute}" is not valid for the selected category "${categoryFormData.category}". Please select a valid attribute.`);
+    }
     setShowAttributeDropdown(false);
   };
 
   const handleAttributeInputClick = () => {
     setShowAttributeDropdown(!showAttributeDropdown);
+  };
+  
+  // Get attributes based on selected category
+  const getCategorySpecificAttributes = (categoryName) => {
+    if (categoryName && categoryAttributes[categoryName]) {
+      return categoryAttributes[categoryName];
+    }
+    return predefinedAttributes; // Fallback to all attributes if category not found
+  };
+  
+  // Validate if attribute belongs to selected category
+  const isAttributeValidForCategory = (attribute, categoryName) => {
+    if (!categoryName || !attribute) return true; // If no category or attribute selected, consider valid
+    
+    const validAttributes = categoryAttributes[categoryName] || [];
+    
+    // Handle comma-separated attributes
+    if (attribute.includes(',')) {
+      const attributeList = attribute.split(',').map(attr => attr.trim());
+      return attributeList.every(attr => validAttributes.includes(attr));
+    }
+    
+    return validAttributes.includes(attribute);
   };
 
   const handleCategoryImageChange = (e) => {
@@ -333,6 +377,13 @@ const Dashboard = () => {
   const handleCategorySubmit = async (e) => {
     e.preventDefault();
     if (categoryFormData.name.trim()) {
+      // Validate if attribute belongs to selected category
+      if (categoryFormData.attribute && categoryFormData.category && 
+          !isAttributeValidForCategory(categoryFormData.attribute, categoryFormData.category)) {
+        alert(`The attribute "${categoryFormData.attribute}" is not valid for the selected category "${categoryFormData.category}". Please select a valid attribute.`);
+        return;
+      }
+      
       try {
         setLoading(true);
         
@@ -1074,7 +1125,7 @@ const Dashboard = () => {
                       <div className="absolute z-10 w-full mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                         <div className="p-2">
                           <div className="text-xs text-gray-400 mb-2 font-medium">Select attributes (click to add):</div>
-                          {predefinedAttributes.map((attribute, index) => (
+                          {getCategorySpecificAttributes(categoryFormData.category).map((attribute, index) => (
                             <div
                               key={index}
                               onClick={() => handleAttributeSelect(attribute)}
