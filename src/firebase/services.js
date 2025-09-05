@@ -122,9 +122,17 @@ export const productService = {
 
       const docRef = await addDoc(collection(db, 'products'), {
         name: productData.name,
+        description: productData.description || '',
         category: productData.category,
         subCategory: productData.subCategory,
-        price: parseFloat(productData.price),
+        price: parseFloat(productData.price) || 0,
+        offerPrice: parseFloat(productData.offerPrice) || 0,
+        brand: productData.brand || '',
+        attribute: productData.attribute || '',
+        stock: parseInt(productData.stock) || 0,
+        sku: productData.sku || '',
+        cashOnDelivery: productData.cashOnDelivery || 'no',
+        date: productData.date || new Date().toISOString().split('T')[0],
         image: imageUrl,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
@@ -133,9 +141,17 @@ export const productService = {
       return {
         id: docRef.id,
         name: productData.name,
+        description: productData.description || '',
         category: productData.category,
         subCategory: productData.subCategory,
-        price: parseFloat(productData.price),
+        price: parseFloat(productData.price) || 0,
+        offerPrice: parseFloat(productData.offerPrice) || 0,
+        brand: productData.brand || '',
+        attribute: productData.attribute || '',
+        stock: parseInt(productData.stock) || 0,
+        sku: productData.sku || '',
+        cashOnDelivery: productData.cashOnDelivery || 'no',
+        date: productData.date || new Date().toISOString().split('T')[0],
         image: imageUrl,
         createdAt: new Date(),
         updatedAt: new Date()
@@ -288,6 +304,103 @@ export const brandService = {
       await deleteDoc(doc(db, 'brands', brandId));
     } catch (error) {
       console.error('Error deleting brand:', error);
+      throw error;
+    }
+  }
+};
+
+// Posters Services
+export const posterService = {
+  // Get all posters
+  async getAll() {
+    try {
+      console.log('Fetching data from Posters collection...');
+      const q = query(collection(db, 'posters'), orderBy('createdAt', 'desc'));
+      const querySnapshot = await getDocs(q);
+      const posters = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      console.log('Posters found:', posters.length, posters);
+      return posters;
+    } catch (error) {
+      console.error('Error fetching posters:', error);
+      throw error;
+    }
+  },
+
+  // Add new poster
+  async add(posterData, imageFile) {
+    try {
+      let imageUrl = null;
+      
+      // Upload image if provided
+      if (imageFile) {
+        const imageRef = ref(storage, `posters/${Date.now()}_${imageFile.name}`);
+        const snapshot = await uploadBytes(imageRef, imageFile);
+        imageUrl = await getDownloadURL(snapshot.ref);
+      }
+
+      const docRef = await addDoc(collection(db, 'posters'), {
+        title: posterData.title,
+        description: posterData.description || '',
+        status: posterData.status || 'active',
+        image: imageUrl,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+
+      return {
+        id: docRef.id,
+        title: posterData.title,
+        description: posterData.description || '',
+        status: posterData.status || 'active',
+        image: imageUrl,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+    } catch (error) {
+      console.error('Error adding poster:', error);
+      throw error;
+    }
+  },
+
+  // Delete poster
+  async delete(posterId) {
+    try {
+      await deleteDoc(doc(db, 'posters', posterId));
+    } catch (error) {
+      console.error('Error deleting poster:', error);
+      throw error;
+    }
+  },
+
+  // Update poster
+  async update(posterId, posterData, imageFile) {
+    try {
+      let updateData = { ...posterData };
+      
+      // Upload new image if provided
+      if (imageFile) {
+        const imageRef = ref(storage, `posters/${Date.now()}_${imageFile.name}`);
+        const snapshot = await uploadBytes(imageRef, imageFile);
+        const imageUrl = await getDownloadURL(snapshot.ref);
+        updateData.image = imageUrl;
+      }
+      
+      await updateDoc(doc(db, 'posters', posterId), {
+        ...updateData,
+        updatedAt: serverTimestamp()
+      });
+      
+      // Return updated poster data
+      return {
+        id: posterId,
+        ...updateData,
+        updatedAt: new Date()
+      };
+    } catch (error) {
+      console.error('Error updating poster:', error);
       throw error;
     }
   }

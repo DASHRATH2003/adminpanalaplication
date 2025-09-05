@@ -52,7 +52,6 @@ const App = () => {
                   <Route path="/posters" element={<Posters />} />
                   <Route path="/notifications" element={<Notifications />} />
                   <Route path="/profile" element={<Profile />} />
-
                 </Routes>
               </main>
             </div>

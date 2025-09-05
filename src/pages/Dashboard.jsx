@@ -12,7 +12,17 @@ const Dashboard = () => {
   const [isAddCategoryModalOpen, setIsAddCategoryModalOpen] = useState(false);
   const [categoryFormData, setCategoryFormData] = useState({
     name: '',
-    image: null
+    image: null,
+    description: '',
+    price: '',
+    brand: '',
+    category: '',
+    subCategory: '',
+    attribute: '',
+    stock: '',
+    sku: '',
+    offerPrice: '',
+    cashOnDelivery: 'no'
   });
   const [categoryImagePreview, setCategoryImagePreview] = useState(null);
   const [categoryImageFile, setCategoryImageFile] = useState(null);
@@ -269,15 +279,46 @@ const Dashboard = () => {
     if (categoryFormData.name.trim()) {
       try {
         setLoading(true);
-        const newCategory = await categoryService.add(categoryFormData, categoryImageFile);
-        setCategories(prev => [newCategory, ...prev]);
-        setCategoryFormData({ name: '', image: null });
+        
+        // Create product data object with all fields
+        const productData = {
+          name: categoryFormData.name,
+          description: categoryFormData.description,
+          price: parseFloat(categoryFormData.price) || 0,
+          offerPrice: parseFloat(categoryFormData.offerPrice) || 0,
+          brand: categoryFormData.brand,
+          category: categoryFormData.category,
+          subCategory: categoryFormData.subCategory,
+          attribute: categoryFormData.attribute,
+          stock: parseInt(categoryFormData.stock) || 0,
+          sku: categoryFormData.sku,
+          cashOnDelivery: categoryFormData.cashOnDelivery,
+          date: new Date().toISOString().split('T')[0]
+        };
+        
+        const newProduct = await productService.add(productData, categoryImageFile);
+        setProducts(prev => [newProduct, ...prev]);
+        setCategoryFormData({ 
+          name: '', 
+          image: null,
+          description: '',
+          price: '',
+          brand: '',
+          category: '',
+          subCategory: '',
+          attribute: '',
+          stock: '',
+          sku: '',
+          offerPrice: '',
+          cashOnDelivery: 'no'
+        });
         setCategoryImagePreview(null);
         setCategoryImageFile(null);
         setIsAddCategoryModalOpen(false);
+        alert('Product added successfully!');
       } catch (error) {
-        console.error('Error adding category:', error);
-        alert('Error adding category. Please try again.');
+        console.error('Error adding product:', error);
+        alert('Error adding product. Please try again.');
       } finally {
         setLoading(false);
       }
@@ -285,7 +326,20 @@ const Dashboard = () => {
   };
 
   const handleCategoryCancel = () => {
-    setCategoryFormData({ name: '', image: null });
+    setCategoryFormData({ 
+      name: '', 
+      image: null,
+      description: '',
+      price: '',
+      brand: '',
+      category: '',
+      subCategory: '',
+      attribute: '',
+      stock: '',
+      sku: '',
+      offerPrice: '',
+      cashOnDelivery: 'no'
+    });
     setCategoryImagePreview(null);
     setCategoryImageFile(null);
     setIsAddCategoryModalOpen(false);
@@ -694,17 +748,16 @@ const Dashboard = () => {
               </div>
               {categories.length > 0 ? (
                 <div className="bg-gray-700 rounded-lg overflow-hidden">
-                   <div className="grid grid-cols-3 gap-4 p-4 bg-gray-600 text-gray-300 text-sm font-medium">
+                   <div className="grid grid-cols-2 gap-4 p-4 bg-gray-600 text-gray-300 text-sm font-medium">
                       <div>Image</div>
                       <div>Category Name</div>
-                      <div>Products</div>
                     </div>
                     {categories.map((category) => {
                       const productCount = getProductCountByCategory(category.name);
                       return (
                         <div 
                           key={category.id} 
-                          className="grid grid-cols-3 gap-4 p-4 border-t border-gray-600 items-center hover:bg-gray-600 cursor-pointer transition-colors"
+                          className="grid grid-cols-2 gap-4 p-4 border-t border-gray-600 items-center hover:bg-gray-600 cursor-pointer transition-colors"
                           onClick={handleCategoryClick}
                         >
                           <div>
@@ -717,7 +770,6 @@ const Dashboard = () => {
                             )}
                           </div>
                           <div className="text-white">{category.name}</div>
-                          <div className="text-blue-400 font-semibold">{productCount} Product{productCount !== 1 ? 's' : ''}</div>
                         </div>
                       );
                     })}
@@ -753,11 +805,11 @@ const Dashboard = () => {
       {/* Add Category Modal */}
       {isAddCategoryModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-md mx-4">
+          <div className="bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h3 className="text-xl font-semibold text-white">Add New Category</h3>
-                <p className="text-sm text-gray-400 mt-1">Fill in the details below to create a new category</p>
+                <h3 className="text-xl font-semibold text-white">Add New Product</h3>
+                <p className="text-sm text-gray-400 mt-1">Fill in the details below to create a new product</p>
               </div>
               <button 
                 onClick={handleCategoryCancel}
@@ -772,7 +824,7 @@ const Dashboard = () => {
               {/* Image Upload */}
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-300 mb-3">
-                  Category Image
+                  Product Image
                 </label>
                 <div className="flex justify-center">
                   <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-600 border-dashed rounded-lg cursor-pointer bg-gray-700 hover:bg-gray-600 transition-colors">
@@ -782,7 +834,7 @@ const Dashboard = () => {
                       ) : (
                         <>
                           <Camera className="w-8 h-8 mb-2 text-gray-400" />
-                          <p className="text-sm text-gray-400">Upload Category Image</p>
+                          <p className="text-sm text-gray-400">Upload Product Image</p>
                         </>
                       )}
                     </div>
@@ -797,21 +849,200 @@ const Dashboard = () => {
                 </div>
               </div>
               
-              {/* Category Name */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Category Name *
-                </label>
-                <input
-                  type="text"
-                  name="name"
-                  value={categoryFormData.name}
-                  onChange={handleCategoryInputChange}
-                  placeholder="Enter category name"
-                  className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                  disabled={loading}
-                />
+              {/* Form Fields Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Product Name */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Product Name *
+                  </label>
+                  <input
+                    type="text"
+                    name="name"
+                    value={categoryFormData.name}
+                    onChange={handleCategoryInputChange}
+                    placeholder="Enter product name"
+                    className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                    disabled={loading}
+                  />
+                </div>
+
+                {/* Description */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Description
+                  </label>
+                  <textarea
+                    name="description"
+                    value={categoryFormData.description}
+                    onChange={handleCategoryInputChange}
+                    placeholder="Enter product description"
+                    className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    rows="3"
+                    disabled={loading}
+                  />
+                </div>
+
+                {/* Price */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Price *
+                  </label>
+                  <input
+                    type="number"
+                    name="price"
+                    value={categoryFormData.price}
+                    onChange={handleCategoryInputChange}
+                    placeholder="Enter price"
+                    className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                    min="0"
+                    step="0.01"
+                    disabled={loading}
+                  />
+                </div>
+
+                {/* Offer Price */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Offer Price
+                  </label>
+                  <input
+                    type="number"
+                    name="offerPrice"
+                    value={categoryFormData.offerPrice}
+                    onChange={handleCategoryInputChange}
+                    placeholder="Enter offer price"
+                    className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    min="0"
+                    step="0.01"
+                    disabled={loading}
+                  />
+                </div>
+
+                {/* Brand */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Brand
+                  </label>
+                  <input
+                    type="text"
+                    name="brand"
+                    value={categoryFormData.brand}
+                    onChange={handleCategoryInputChange}
+                    placeholder="Enter brand name"
+                    className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    disabled={loading}
+                  />
+                </div>
+
+                {/* Category */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Category *
+                  </label>
+                  <select
+                    name="category"
+                    value={categoryFormData.category}
+                    onChange={handleCategoryInputChange}
+                    className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                    disabled={loading}
+                  >
+                    <option value="">Select Category</option>
+                    {categories.map((category) => (
+                      <option key={category.id} value={category.name}>{category.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Sub Category */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Sub Category *
+                  </label>
+                  <select
+                    name="subCategory"
+                    value={categoryFormData.subCategory}
+                    onChange={handleCategoryInputChange}
+                    className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                    disabled={loading}
+                  >
+                    <option value="">Select Sub Category</option>
+                    {subCategories.map((subCategory) => (
+                      <option key={subCategory.id} value={subCategory.name}>{subCategory.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Attribute */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Attribute
+                  </label>
+                  <input
+                    type="text"
+                    name="attribute"
+                    value={categoryFormData.attribute}
+                    onChange={handleCategoryInputChange}
+                    placeholder="Enter product attributes"
+                    className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    disabled={loading}
+                  />
+                </div>
+
+                {/* Stock */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Stock *
+                  </label>
+                  <input
+                    type="number"
+                    name="stock"
+                    value={categoryFormData.stock}
+                    onChange={handleCategoryInputChange}
+                    placeholder="Enter stock quantity"
+                    className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                    min="0"
+                    disabled={loading}
+                  />
+                </div>
+
+                {/* SKU */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    SKU
+                  </label>
+                  <input
+                    type="text"
+                    name="sku"
+                    value={categoryFormData.sku}
+                    onChange={handleCategoryInputChange}
+                    placeholder="Enter SKU"
+                    className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    disabled={loading}
+                  />
+                </div>
+
+                {/* Cash on Delivery */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Cash on Delivery
+                  </label>
+                  <select
+                    name="cashOnDelivery"
+                    value={categoryFormData.cashOnDelivery}
+                    onChange={handleCategoryInputChange}
+                    className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    disabled={loading}
+                  >
+                    <option value="no">No</option>
+                    <option value="yes">Yes</option>
+                  </select>
+                </div>
               </div>
               
 
@@ -831,7 +1062,7 @@ const Dashboard = () => {
                   className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={loading}
                 >
-                  {loading ? 'Adding...' : 'Add Category'}
+                  {loading ? 'Adding...' : 'Add Product'}
                 </button>
               </div>
             </form>
