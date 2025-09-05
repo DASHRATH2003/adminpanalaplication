@@ -1,5 +1,6 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Papa from 'papaparse';
+// Import xlsx directly but ensure it's properly configured in vite.config.js
 import * as XLSX from 'xlsx';
 import { X, Upload, Download, FileText, AlertCircle, CheckCircle, Loader } from 'lucide-react';
 
