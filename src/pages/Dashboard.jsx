@@ -58,7 +58,8 @@ const Dashboard = () => {
     category: '',
     subCategory: '',
     price: '',
-    image: null
+    image: null,
+    attribute: ''
   });
   const [imagePreview, setImagePreview] = useState(null);
   const [imageFile, setImageFile] = useState(null);
@@ -169,6 +170,14 @@ const Dashboard = () => {
       ...prev,
       [name]: value
     }));
+    
+    // No auto-fill for attributes when category changes as per user request
+    if (name === 'category') {
+      setFormData(prev => ({
+        ...prev,
+        attribute: ''
+      }));
+    }
   };
 
   const handleImageChange = (e) => {
@@ -294,7 +303,7 @@ const Dashboard = () => {
       [name]: value
     }));
     
-    // If category changed, reset attribute field
+    // No auto-fill for attributes when category changes as per user request
     if (name === 'category') {
       setCategoryFormData(prev => ({
         ...prev,
@@ -318,8 +327,9 @@ const Dashboard = () => {
     setShowAttributeDropdown(false);
   };
 
+  // Attribute input click handler removed as per user request
   const handleAttributeInputClick = () => {
-    setShowAttributeDropdown(!showAttributeDropdown);
+    // No dropdown functionality as per user request
   };
   
   // Get attributes based on selected category
@@ -463,7 +473,8 @@ const Dashboard = () => {
       category: product.category,
       subCategory: product.subCategory,
       price: product.price,
-      image: product.image
+      image: product.image,
+      attribute: product.attribute || ''
     });
     setImagePreview(product.image);
     setIsProductSelectModalOpen(false);
@@ -477,7 +488,7 @@ const Dashboard = () => {
 
   const handleNewProduct = () => {
     setSelectedProduct(null);
-    setFormData({ name: '', category: '', subCategory: '', price: '', image: null });
+    setFormData({ name: '', category: '', subCategory: '', price: '', image: null, attribute: '' });
     setImagePreview(null);
     setImageFile(null);
     setIsProductSelectModalOpen(false);
@@ -779,6 +790,21 @@ const Dashboard = () => {
                     <option key={subCategory.id} value={subCategory.name}>{subCategory.name}</option>
                   ))}
                 </select>
+              </div>
+
+              {/* Attribute */}
+              <div className="mb-4 relative attribute-dropdown-container">
+                <div className="relative">
+                  <input
+                    type="text"
+                    name="attribute"
+                    value={formData.attribute}
+                    onChange={handleInputChange}
+                    placeholder="Enter product attributes"
+                    className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    disabled={loading}
+                  />
+                </div>
               </div>
 
               {/* Price */}
@@ -1116,27 +1142,10 @@ const Dashboard = () => {
                       name="attribute"
                       value={categoryFormData.attribute}
                       onChange={handleCategoryInputChange}
-                      onClick={handleAttributeInputClick}
-                      placeholder="Click to select or enter product attributes"
-                      className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent cursor-pointer"
+                      placeholder="Enter product attributes"
+                      className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       disabled={loading}
                     />
-                    {showAttributeDropdown && (
-                      <div className="absolute z-10 w-full mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                        <div className="p-2">
-                          <div className="text-xs text-gray-400 mb-2 font-medium">Select attributes (click to add):</div>
-                          {getCategorySpecificAttributes(categoryFormData.category).map((attribute, index) => (
-                            <div
-                              key={index}
-                              onClick={() => handleAttributeSelect(attribute)}
-                              className="px-3 py-2 text-sm text-white hover:bg-gray-600 cursor-pointer rounded transition-colors"
-                            >
-                              {attribute}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                   </div>
                 </div>
 
