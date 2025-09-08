@@ -2,6 +2,7 @@ import {
   collection, 
   addDoc, 
   getDocs, 
+  getDoc,
   doc, 
   deleteDoc, 
   updateDoc,
@@ -19,10 +20,14 @@ export const categoryService = {
     try {
       console.log('Fetching data from Categories collection...');
       const querySnapshot = await getDocs(collection(db, 'category'));
-      const categories = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      const categories = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        console.log('Document ID:', doc.id, 'Document data:', data);
+        return {
+          id: doc.id,
+          ...data
+        };
+      });
       console.log('Categories found:', categories.length, categories);
       return categories;
     } catch (error) {
@@ -42,19 +47,15 @@ export const categoryService = {
         const snapshot = await uploadBytes(imageRef, imageFile);
         imageUrl = await getDownloadURL(snapshot.ref);
       }
-
-      // Generate a unique ID for the category
-      const generatedId = `CAT_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
       const docRef = await addDoc(collection(db, 'category'), {
-        id: generatedId,
         name: categoryData.name,
-        image: imageUrl
+        image: imageUrl,
+        createdAt: serverTimestamp()
       });
 
       return {
         id: docRef.id,
-        categoryId: generatedId,
         name: categoryData.name,
         image: imageUrl
       };
@@ -67,7 +68,11 @@ export const categoryService = {
   // Delete category
   async delete(categoryId) {
     try {
+      console.log('Delete method called with categoryId:', categoryId);
+      console.log('Attempting direct deletion...');
+      
       await deleteDoc(doc(db, 'category', categoryId));
+      console.log('Category deleted successfully');
     } catch (error) {
       console.error('Error deleting category:', error);
       throw error;
@@ -75,12 +80,67 @@ export const categoryService = {
   },
 
   // Update category
-  async update(categoryId, categoryData) {
+  async update(categoryId, categoryData, imageFile) {
     try {
-      await updateDoc(doc(db, 'category', categoryId), {
-        ...categoryData,
-        updatedAt: serverTimestamp()
+      console.log('Update method called with categoryId:', categoryId);
+      console.log('Category data:', categoryData);
+      
+      // Get all categories to find the right one
+      const querySnapshot = await getDocs(collection(db, 'category'));
+      let targetDoc = null;
+      let targetDocId = null;
+      
+      // Search through all documents
+      querySnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        console.log('Checking document:', doc.id, 'with data:', data);
+        
+        // First try to match by exact ID
+        if (doc.id === categoryId) {
+          targetDoc = doc;
+          targetDocId = doc.id;
+          console.log('Found exact ID match:', doc.id);
+        }
+        // If no exact ID match, try to match by name and existing data
+        else if (!targetDoc && data.name && categoryData.name && 
+                 data.name.toLowerCase().trim() === categoryData.name.toLowerCase().trim()) {
+          targetDoc = doc;
+          targetDocId = doc.id;
+          console.log('Found name match:', doc.id, 'for name:', data.name);
+        }
       });
+      
+      if (!targetDoc) {
+        console.error('Category document not found for ID:', categoryId);
+        throw new Error('Category not found');
+      }
+      
+      const currentCategory = targetDoc.data();
+      console.log('Current category data:', currentCategory);
+      let imageUrl = currentCategory.image;
+      
+      // Upload new image if provided
+      if (imageFile) {
+        const imageRef = ref(storage, `categories/${Date.now()}_${imageFile.name}`);
+        const snapshot = await uploadBytes(imageRef, imageFile);
+        imageUrl = await getDownloadURL(snapshot.ref);
+      }
+      
+      const updatedData = {
+        ...categoryData,
+        image: imageUrl,
+        updatedAt: serverTimestamp()
+      };
+      
+      console.log('Updating document with ID:', targetDocId, 'with data:', updatedData);
+      const categoryRef = doc(db, 'category', targetDocId);
+      await updateDoc(categoryRef, updatedData);
+      
+      return {
+        id: targetDocId,
+        ...currentCategory,
+        ...updatedData
+      };
     } catch (error) {
       console.error('Error updating category:', error);
       throw error;
@@ -262,9 +322,63 @@ export const subCategoryService = {
   // Delete sub category
   async delete(subCategoryId) {
     try {
+      console.log('Delete subcategory method called with ID:', subCategoryId);
       await deleteDoc(doc(db, 'subcategory', subCategoryId));
+      console.log('Subcategory deleted successfully');
     } catch (error) {
       console.error('Error deleting sub category:', error);
+      throw error;
+    }
+  },
+
+  // Update sub category
+  async update(subCategoryId, subCategoryData) {
+    try {
+      console.log('SubCategory update called with ID:', subCategoryId);
+      
+      // Get all subcategories to find the right one
+      const querySnapshot = await getDocs(collection(db, 'subcategory'));
+      let targetDoc = null;
+      let targetDocId = null;
+      
+      // Search through all documents
+      querySnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        console.log('Checking subcategory document:', doc.id, 'with data:', data);
+        
+        // First try to match by exact ID
+        if (doc.id === subCategoryId) {
+          targetDoc = doc;
+          targetDocId = doc.id;
+          console.log('Found exact subcategory ID match:', doc.id);
+        }
+        // If no exact ID match, try to match by name
+        else if (!targetDoc && data.name && subCategoryData.name && 
+                 data.name.toLowerCase().trim() === subCategoryData.name.toLowerCase().trim()) {
+          targetDoc = doc;
+          targetDocId = doc.id;
+          console.log('Found subcategory name match:', doc.id, 'for name:', data.name);
+        }
+      });
+      
+      if (!targetDoc) {
+        console.error('SubCategory document not found for ID:', subCategoryId);
+        throw new Error('SubCategory not found');
+      }
+      
+      console.log('Updating subcategory document with ID:', targetDocId);
+      await updateDoc(doc(db, 'subcategory', targetDocId), {
+        ...subCategoryData,
+        updatedAt: serverTimestamp()
+      });
+      
+      // Return updated subcategory data
+      return {
+        id: targetDocId,
+        ...subCategoryData
+      };
+    } catch (error) {
+      console.error('Error updating sub category:', error);
       throw error;
     }
   }
@@ -313,9 +427,30 @@ export const brandService = {
   // Delete brand
   async delete(brandId) {
     try {
+      console.log('Delete brand method called with ID:', brandId);
       await deleteDoc(doc(db, 'brands', brandId));
+      console.log('Brand deleted successfully');
     } catch (error) {
       console.error('Error deleting brand:', error);
+      throw error;
+    }
+  },
+
+  // Update brand
+  async update(brandId, brandData) {
+    try {
+      await updateDoc(doc(db, 'brands', brandId), {
+        ...brandData,
+        updatedAt: serverTimestamp()
+      });
+      
+      // Return updated brand data
+      return {
+        id: brandId,
+        ...brandData
+      };
+    } catch (error) {
+      console.error('Error updating brand:', error);
       throw error;
     }
   }
@@ -380,7 +515,9 @@ export const posterService = {
   // Delete poster
   async delete(posterId) {
     try {
+      console.log('Delete poster method called with ID:', posterId);
       await deleteDoc(doc(db, 'posters', posterId));
+      console.log('Poster deleted successfully');
     } catch (error) {
       console.error('Error deleting poster:', error);
       throw error;

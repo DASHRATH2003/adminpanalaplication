@@ -146,7 +146,7 @@ const Posters = () => {
   };
 
   return (
-    <div className="p-4 lg:p-6 bg-gray-900 min-h-screen">
+    <div className="p-4 lg:p-6 bg-gray-900 h-full">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-semibold text-white">Posters</h2>
         <div className="flex items-center space-x-3">

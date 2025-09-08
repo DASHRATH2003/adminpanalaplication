@@ -34,17 +34,32 @@ const Dashboard = () => {
   
   // Category-specific attributes mapping
   const categoryAttributes = {
-    "Clothing": ["Color", "Material", "Fit", "Pattern", "Sleeve Type", "Care Instruction (Machine wash, Hand wash)"],
+    "Clothing": ["Size", "Color", "Material", "Fit", "Pattern", "Sleeve Type", "Care Instruction (Machine wash, Hand wash)"],
+    "FootWear": ["Size", "Color", "Material", "Type", "Gender"],
+    "Footwares": ["Size", "Color", "Material", "Type", "Gender"],
     "Mobile": ["Model", "Color", "Ram", "Storage", "Battery", "Camera", "Processor", "Display", "OS", "Connectivity", "Warranty"],
-    "Laptop": ["Model", "Graphics (Integrated / Dedicated)", "Ram", "Storage", "Battery", "Camera", "Processor", "Display", "OS", "Connectivity", "Warranty", "Operating System", "Port", "Weight", "Warranty"],
-    "TV": ["Model", "Screen Size", "Resolution (2K, 4K, etc.)", "Display Type", "Smart Features (Yes, No)", "Connectivity", "Warranty"],
+    "Laptops": ["Model", "Graphics (Integrated / Dedicated)", "Ram", "Storage", "Battery", "Camera", "Processor", "Display", "OS", "Connectivity", "Warranty", "Screen Size", "Operating System", "Port", "Weight", "Warranty"],
+    "Electronics": ["Model", "Screen Size", "Resolution (2K, 4K, 8K)", "Display Type", "Smart Features (Yes, No)", "Connectivity (USB, WiFi, Bluetooth, HDMI)", "Energy Rating", "Power Consumption", "Warranty"],
+    "TV": ["Model", "Screen Size", "Resolution (2K, 4K, 8K)", "Display Type", "Smart Features (Yes, No)", "Connectivity (USB, WiFi, Bluetooth, HDMI)", "Energy Rating", "Power Consumption", "Warranty"],
+    "Toys": ["Age Group", "Material", "Color", "Size", "Safety Certification", "Battery Required", "Educational Value", "Brand", "Weight", "Warranty"],
+    "Fashion": ["Size", "Color", "Material", "Fit", "Pattern", "Style", "Occasion", "Care Instructions", "Brand", "Season"],
+    "Cosmetic": ["Shade", "Color", "Type", "Ingredients", "Skin Type", "Volume/Weight", "Expiry Date", "Cruelty Free", "Organic", "Brand"],
+    "Cousmetic": ["Shade", "Color", "Type", "Ingredients", "Skin Type", "Volume/Weight", "Expiry Date", "Cruelty Free", "Organic", "Brand"],
+    "Cosmetics": ["Shade", "Color", "Type", "Ingredients", "Skin Type", "Volume/Weight", "Expiry Date", "Cruelty Free", "Organic", "Brand"],
+    "Shoe": ["Size", "Color", "Material", "Type", "Gender", "Sole Material", "Heel Height", "Closure Type", "Brand", "Occasion"],
     "Furniture": ["Material", "Color", "Dimension (L x W x H)", "Weight Capacity", "Assembly (Yes, No)", "Style", "Room Type (Bedroom, Living Room)", "Warranty"],
+    "Grossery": ["Weight/Volume", "Quantity (1 Pack, 2 Pack)", "Organic/Non Organic", "Expiry Date", "Storage Instructions", "Dietary Preference (Vegan, Gluten-Free, Keto-Friendly)",],
+    "Beauty & Personal Care": ["Shade", "Color", "Type (Cream, Serum, Powder, Oil, Shampoo, etc.)", "Ingredients (Natural, Chemical, Herbal)", "Skin/Hair Type (Oily, Dry, Sensitive, All Types)", "Weight/Volume", "Expiry Date", "Dermatologically Tested (Yes/No)"],
+    "Beauty&Personal Care": ["Shade", "Color", "Type (Cream, Serum, Powder, Oil, Shampoo, etc.)", "Ingredients (Natural, Chemical, Herbal)", "Skin/Hair Type (Oily, Dry, Sensitive, All Types)", "Weight/Volume", "Expiry Date", "Dermatologically Tested (Yes/No)"],
+    "Beauty&PersonalCare": ["Shade", "Color", "Type (Cream, Serum, Powder, Oil, Shampoo, etc.)", "Ingredients (Natural, Chemical, Herbal)", "Skin/Hair Type (Oily, Dry, Sensitive, All Types)", "Weight/Volume", "Expiry Date", "Dermatologically Tested (Yes/No)"],
+    "Beauty&personalcare": ["Shade", "Color", "Type (Cream, Serum, Powder, Oil, Shampoo, etc.)", "Ingredients (Natural, Chemical, Herbal)", "Skin/Hair Type (Oily, Dry, Sensitive, All Types)", "Weight/Volume", "Expiry Date", "Dermatologically Tested (Yes/No)"],
+    "Jewellery": ["Material (Gold, Silver, Platinum, Artificial, Diamond)", "Purity (18k, 22k, 24kt)", "Weight", "Color", "Size (Ring Size, Chain Length, etc.)", "Gemstone (Diamond, Ruby, Emerald, etc.)", "Certification (BIS Hallmark, IGI, GIA, etc.)", "Occasion (Daily, Wedding, Party)"],
+    "Book": ["Title", "Author", "Publisher", "Edition", "Language", "ISBN", "Pages", "Binding (Paperback, Hardcover)", "Genre (Fiction, Non-Fiction, Academic, etc.)"],
+    "Books": ["Title", "Author", "Publisher", "Edition", "Language", "ISBN", "Pages", "Binding (Paperback, Hardcover)", "Genre (Fiction, Non-Fiction, Academic, etc.)"],
+    "Stationery": ["Title", "Author", "Publisher", "Edition", "Language", "ISBN", "Pages", "Binding (Paperback, Hardcover)", "Genre (Fiction, Non-Fiction, Academic, etc.)"],
     "Beauty": ["Shade", "Color", "Type (Cream, Serum,Powder, Oil, Shampoo, etc.)", "Ingredients (Natural, Chemical, Herbal)", "Skin/Hair Type (Oily, Dry, Sensitive, All Type)", "Vegan/Volume", "Expiry Date", "Dermatologically Tested (Yes/No)"],
     "Jewelry": ["Material (Gold, Silver, Platinum, Artificial, Diamond)", "Purity (8k, 22k, 24kt)", "Weight", "Color", "Stone (Fine Size, Chain Length, etc.)", "Gemstone (Diamond, Ruby, Emerald, etc.)", "Certification (BIS Hallmark, IGI, GIA, etc.)", "Occasion (Daily, Wedding, Party)"],
-    "Books": ["Title", "Author", "Publisher", "Edition", "Language", "ISBN", "Pages", "Binding (Paperback, Hardcover)", "Genre (Fiction, Non-Fiction, Academic, etc.)"],
-    "Book": ["Title", "Author", "Publisher", "Edition", "Language", "ISBN", "Pages", "Binding (Paperback, Hardcover)", "Genre (Fiction, Non-Fiction, Academic, etc.)"],
-    "Stationery": ["Title", "Author", "Publisher", "Edition", "Language", "ISBN", "Pages", "Binding (Paperback, Hardcover)", "Genre (Fiction, Non-Fiction, Academic, etc.)"],
-    "Grocery": ["Weight/Volume", "Quantity (1 Pack, 2 Pack)", "Organic/Non Organic", "Expiry Date", "Storage Instructions", "Dietary Preference (Vegan, Gluten-Free, etc.)", "Nutritional Info"],
+    "Grocery": ["Weight/Volume", "Quantity (1 Pack, 2 Pack)", "Organic/Non Organic", "Expiry Date", "Storage Instructions", "Dietary Preference (Vegan, Gluten-Free, etc.)", "Nutritional Info", "Brand", "Category", "Subcategory", "Price", "Offer Price", "SKU", "Stock", "Description", "Images", "Cash on Delivery"],
     "Home Decor": ["Material", "Color", "Dimension (L x W x H)", "Weight Capacity", "Assembly (Yes, No)", "Style", "Room Type (Bedroom, Living Room)", "Warranty"]
   };
   
@@ -59,7 +74,13 @@ const Dashboard = () => {
     subCategory: '',
     price: '',
     image: null,
-    attribute: ''
+    attribute: '',
+    description: '',
+    brand: '',
+    stock: '',
+    sku: '',
+    offerPrice: '',
+    cashOnDelivery: 'no'
   });
   const [imagePreview, setImagePreview] = useState(null);
   const [imageFile, setImageFile] = useState(null);
@@ -232,7 +253,20 @@ const Dashboard = () => {
           setProducts(prev => [mappedNewProduct, ...prev]);
         }
         
-        setFormData({ name: '', category: '', subCategory: '', price: '', image: null });
+        setFormData({ 
+          name: '', 
+          category: '', 
+          subCategory: '', 
+          price: '', 
+          image: null, 
+          attribute: '',
+          description: '',
+          brand: '',
+          stock: '',
+          sku: '',
+          offerPrice: '',
+          cashOnDelivery: 'no'
+        });
         setImagePreview(null);
         setImageFile(null);
         setSelectedProduct(null);
@@ -247,7 +281,20 @@ const Dashboard = () => {
   };
 
   const handleCancel = () => {
-    setFormData({ name: '', category: '', subCategory: '', price: '', image: null });
+    setFormData({ 
+      name: '', 
+      category: '', 
+      subCategory: '', 
+      price: '', 
+      image: null, 
+      attribute: '',
+      description: '',
+      brand: '',
+      stock: '',
+      sku: '',
+      offerPrice: '',
+      cashOnDelivery: 'no'
+    });
     setImagePreview(null);
     setImageFile(null);
     setSelectedProduct(null);
@@ -462,7 +509,14 @@ const Dashboard = () => {
     setIsAddCategoryModalOpen(false);
   };
 
-  const handleCategoryClick = () => {
+  const handleCategoryClick = (selectedCategory = null) => {
+    if (selectedCategory) {
+      // Pre-fill category when clicking on existing category
+      setCategoryFormData(prev => ({
+        ...prev,
+        category: selectedCategory.name
+      }));
+    }
     setIsAddCategoryModalOpen(true);
   };
 
@@ -488,10 +542,43 @@ const Dashboard = () => {
 
   const handleNewProduct = () => {
     setSelectedProduct(null);
-    setFormData({ name: '', category: '', subCategory: '', price: '', image: null, attribute: '' });
+    setFormData({ 
+      name: '', 
+      category: '', 
+      subCategory: '', 
+      price: '', 
+      image: null, 
+      attribute: '',
+      description: '',
+      brand: '',
+      stock: '',
+      sku: '',
+      offerPrice: '',
+      cashOnDelivery: 'no'
+    });
     setImagePreview(null);
     setImageFile(null);
     setIsProductSelectModalOpen(false);
+    setIsModalOpen(true);
+  };
+
+  const handleEdit = (product) => {
+    setSelectedProduct(product);
+    setFormData({
+      name: product.name,
+      category: product.category,
+      subCategory: product.subCategory,
+      price: product.price,
+      image: product.image,
+      attribute: product.attribute || '',
+      description: product.description || '',
+      brand: product.brand || '',
+      stock: product.stock || '',
+      sku: product.sku || '',
+      offerPrice: product.offerPrice || '',
+      cashOnDelivery: product.cashOnDelivery || 'no'
+    });
+    setImagePreview(product.image);
     setIsModalOpen(true);
   };
 
@@ -499,11 +586,28 @@ const Dashboard = () => {
     if (window.confirm('Are you sure you want to delete this product?')) {
       try {
         setLoading(true);
+        console.log('Deleting product with ID:', id);
+        
+        // Delete from Firebase
         await productService.delete(id);
-        setProducts(prev => prev.filter(product => product.id !== id));
+        console.log('Product deleted successfully from Firebase');
+        
+        // Update local state immediately
+        setProducts(prev => {
+          const updatedProducts = prev.filter(product => product.id !== id);
+          console.log('Updated products list:', updatedProducts.length, 'products remaining');
+          return updatedProducts;
+        });
+        
+        // Show success message
+        alert('Product deleted successfully!');
+        
       } catch (error) {
         console.error('Error deleting product:', error);
-        alert('Error deleting product. Please try again.');
+        alert(`Error deleting product: ${error.message}. Please try again.`);
+        
+        // Refresh data in case of error to show current state
+        fetchAllData();
       } finally {
         setLoading(false);
       }
@@ -551,12 +655,12 @@ const Dashboard = () => {
   ];
 
   return (
-    <div className="p-3 md:p-6 bg-gray-900 min-h-screen flex flex-col lg:flex-row gap-3 md:gap-6">
+    <div className="p-4 md:p-6 lg:p-8 bg-gray-900 min-h-screen flex flex-col lg:flex-row gap-4 md:gap-6 lg:gap-8">
       {/* Main Content - Products Section */}
-      <div className="flex-1 min-w-0">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+      <div className="flex-1 min-w-0 flex flex-col">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 lg:mb-6 gap-3 lg:gap-4">
           <h2 className="text-xl md:text-2xl font-semibold text-white">My Products</h2>
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 lg:gap-4">
             <button 
               onClick={() => setIsProductSelectModalOpen(true)}
               className="bg-blue-600 hover:bg-blue-700 text-white px-3 md:px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors text-sm md:text-base"
@@ -583,7 +687,7 @@ const Dashboard = () => {
         </div>
 
         {/* Product Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 mb-6 lg:mb-8">
           {productStats.map((stat, index) => {
             const Icon = stat.icon;
             return (
@@ -604,8 +708,8 @@ const Dashboard = () => {
         </div>
 
         {/* Products Table */}
-        <div className="bg-gray-800 rounded-lg overflow-hidden">
-          <div className="overflow-x-auto">
+        <div className="bg-gray-800 rounded-lg overflow-hidden flex-1 flex flex-col min-h-0">
+          <div className="overflow-auto flex-1">
             <table className="w-full min-w-[600px]">
               <thead className="bg-gray-700">
                 <tr>
@@ -645,8 +749,8 @@ const Dashboard = () => {
                               <Package size={14} className="text-gray-400 md:w-4 md:h-4" />
                             </div>
                           )}
-                          <div className="min-w-0">
-                            <span className="text-white text-sm md:text-base truncate block">{product.name}</span>
+                          <div className="min-w-0 flex-1">
+                            <span className="text-white text-sm md:text-base block leading-tight break-words">{product.name}</span>
                             <div className="sm:hidden text-xs text-gray-400 mt-1">
                               {product.category} • ₹{product.price}
                             </div>
@@ -658,7 +762,11 @@ const Dashboard = () => {
                       <td className="px-3 md:px-6 py-3 md:py-4 text-gray-300 text-sm hidden sm:block sm:table-cell">₹{product.price}</td>
                       <td className="px-3 md:px-6 py-3 md:py-4">
                         <div className="flex items-center space-x-2">
-                          <button className="text-blue-400 hover:text-blue-300 p-1">
+                          <button 
+                            onClick={() => handleEdit(product)}
+                            className="text-blue-400 hover:text-blue-300 p-1"
+                            disabled={loading}
+                          >
                             <Edit size={14} className="md:w-4 md:h-4" />
                           </button>
                           <button 
@@ -680,7 +788,7 @@ const Dashboard = () => {
       </div>
 
       {/* Right Sidebar - Orders Details */}
-      <div className="w-full lg:w-80 bg-gray-800 rounded-lg p-4 md:p-6">
+      <div className="w-full lg:w-80 flex-shrink-0 bg-gray-800 rounded-lg p-4 md:p-6">
         <div className="flex items-center justify-between mb-4 md:mb-6">
           <h2 className="text-lg md:text-xl font-semibold text-white">Orders Details</h2>
           <div className="text-2xl md:text-3xl font-bold text-white">0</div>
@@ -808,7 +916,7 @@ const Dashboard = () => {
               </div>
 
               {/* Price */}
-              <div className="mb-6">
+              <div className="mb-4">
                 <input
                   type="number"
                   name="price"
@@ -820,6 +928,82 @@ const Dashboard = () => {
                   min="0"
                   step="0.01"
                 />
+              </div>
+
+              {/* Offer Price */}
+              <div className="mb-4">
+                <input
+                  type="number"
+                  name="offerPrice"
+                  value={formData.offerPrice}
+                  onChange={handleInputChange}
+                  placeholder="Offer Price (₹)"
+                  className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  min="0"
+                  step="0.01"
+                />
+              </div>
+
+              {/* Brand */}
+              <div className="mb-4">
+                <input
+                  type="text"
+                  name="brand"
+                  value={formData.brand}
+                  onChange={handleInputChange}
+                  placeholder="Brand"
+                  className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Description */}
+              <div className="mb-4">
+                <textarea
+                  name="description"
+                  value={formData.description}
+                  onChange={handleInputChange}
+                  placeholder="Product Description"
+                  className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  rows="3"
+                />
+              </div>
+
+              {/* Stock */}
+              <div className="mb-4">
+                <input
+                  type="number"
+                  name="stock"
+                  value={formData.stock}
+                  onChange={handleInputChange}
+                  placeholder="Stock Quantity"
+                  className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  min="0"
+                />
+              </div>
+
+              {/* SKU */}
+              <div className="mb-4">
+                <input
+                  type="text"
+                  name="sku"
+                  value={formData.sku}
+                  onChange={handleInputChange}
+                  placeholder="SKU"
+                  className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Cash on Delivery */}
+              <div className="mb-6">
+                <select
+                  name="cashOnDelivery"
+                  value={formData.cashOnDelivery}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="no">Cash on Delivery: No</option>
+                  <option value="yes">Cash on Delivery: Yes</option>
+                </select>
               </div>
               
               {/* Buttons */}
@@ -835,7 +1019,7 @@ const Dashboard = () => {
                   type="submit"
                   className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                 >
-                  Add Product
+                  {selectedProduct ? 'Update Product' : 'Add Product'}
                 </button>
               </div>
             </form>
@@ -891,7 +1075,7 @@ const Dashboard = () => {
                         <div 
                           key={category.id} 
                           className="grid grid-cols-2 gap-4 p-4 border-t border-gray-600 items-center hover:bg-gray-600 cursor-pointer transition-colors"
-                          onClick={handleCategoryClick}
+                          onClick={() => handleCategoryClick(category)}
                         >
                           <div>
                             {category.image ? (
@@ -1096,19 +1280,16 @@ const Dashboard = () => {
                   <label className="block text-sm font-medium text-gray-300 mb-2">
                     Category *
                   </label>
-                  <select
+                  <input
+                    type="text"
                     name="category"
                     value={categoryFormData.category}
                     onChange={handleCategoryInputChange}
-                    className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter Category"
+                    className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
                     disabled={loading}
-                  >
-                    <option value="">Select Category</option>
-                    {categories.map((category) => (
-                      <option key={category.id} value={category.name}>{category.name}</option>
-                    ))}
-                  </select>
+                  />
                 </div>
 
                 {/* Sub Category */}
@@ -1131,23 +1312,50 @@ const Dashboard = () => {
                   </select>
                 </div>
 
-                {/* Attribute */}
-                <div className="mb-4 relative attribute-dropdown-container">
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Attribute
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      name="attribute"
-                      value={categoryFormData.attribute}
-                      onChange={handleCategoryInputChange}
-                      placeholder="Enter product attributes"
-                      className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      disabled={loading}
-                    />
+                {/* Dynamic Attributes */}
+                {categoryFormData.category && categoryAttributes[categoryFormData.category] && (
+                  <div className="col-span-1 md:col-span-2 mb-6">
+                    <label className="block text-lg font-semibold text-blue-400 mb-4">
+                      Attributes for {categoryFormData.category}
+                    </label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {categoryAttributes[categoryFormData.category].map((attribute, index) => (
+                        <div key={index} className="bg-gray-700 p-4 rounded-lg border border-gray-600">
+                          <label className="block text-sm font-medium text-gray-300 mb-2">
+                            {attribute}
+                          </label>
+                          <input
+                            type="text"
+                            name={`attribute_${attribute.replace(/[^a-zA-Z0-9]/g, '_')}`}
+                            placeholder={`Enter ${attribute}`}
+                            className="w-full px-4 py-3 bg-gray-800 border border-gray-500 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                            disabled={loading}
+                          />
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
+                
+                {/* Fallback Attribute Input */}
+                {(!categoryFormData.category || !categoryAttributes[categoryFormData.category]) && (
+                  <div className="col-span-1 md:col-span-2 mb-4 relative attribute-dropdown-container">
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Attribute
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        name="attribute"
+                        value={categoryFormData.attribute}
+                        onChange={handleCategoryInputChange}
+                        placeholder="Enter product attributes (comma separated)"
+                        className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                        disabled={loading}
+                      />
+                    </div>
+                  </div>
+                )}
 
                 {/* Stock */}
                 <div className="mb-4">

@@ -35,11 +35,11 @@ const App = () => {
         
         {/* Main App Routes */}
         <Route path="/*" element={
-          <div className="flex bg-gray-900 min-h-screen">
+          <div className="flex bg-gray-900 h-screen overflow-hidden">
             <Sidebar isOpen={isSidebarOpen} onClose={closeSidebar} />
-            <div className="flex-1 lg:ml-64">
+            <div className="flex-1 lg:ml-64 flex flex-col">
               <Header onToggleSidebar={toggleSidebar} />
-              <main>
+              <main className="flex-1 overflow-auto">
                 <Routes>
                   <Route path="/" element={<Dashboard />} />
                   <Route path="/category" element={<Category />} />

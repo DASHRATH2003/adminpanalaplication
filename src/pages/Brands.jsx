@@ -7,6 +7,7 @@ const Brands = () => {
   const [brands, setBrands] = useState([]);
   const [subCategories, setSubCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedBrand, setSelectedBrand] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
     subCategory: ''
@@ -46,13 +47,25 @@ const Brands = () => {
     if (formData.name.trim() && formData.subCategory.trim()) {
       try {
         setLoading(true);
-        const newBrand = await brandService.add(formData);
-        setBrands(prev => [newBrand, ...prev]);
+        
+        if (selectedBrand) {
+          // Update existing brand
+          const updatedBrand = await brandService.update(selectedBrand.id, formData);
+          setBrands(prev => prev.map(brand => 
+            brand.id === selectedBrand.id ? updatedBrand : brand
+          ));
+        } else {
+          // Add new brand
+          const newBrand = await brandService.add(formData);
+          setBrands(prev => [newBrand, ...prev]);
+        }
+        
         setFormData({ name: '', subCategory: '' });
+        setSelectedBrand(null);
         setIsModalOpen(false);
       } catch (error) {
-        console.error('Error adding brand:', error);
-        alert('Error adding brand. Please try again.');
+        console.error('Error saving brand:', error);
+        alert('Error saving brand. Please try again.');
       } finally {
         setLoading(false);
       }
@@ -61,7 +74,17 @@ const Brands = () => {
 
   const handleCancel = () => {
     setFormData({ name: '', subCategory: '' });
+    setSelectedBrand(null);
     setIsModalOpen(false);
+  };
+
+  const handleEdit = (brand) => {
+    setSelectedBrand(brand);
+    setFormData({
+      name: brand.name,
+      subCategory: brand.subCategory
+    });
+    setIsModalOpen(true);
   };
 
   const handleDelete = async (id) => {
@@ -84,7 +107,7 @@ const Brands = () => {
   };
 
   return (
-    <div className="p-4 lg:p-6 bg-gray-900 min-h-screen">
+    <div className="p-4 lg:p-6 bg-gray-900 h-full">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-semibold text-white">Brands</h2>
         <div className="flex items-center space-x-3">
@@ -142,7 +165,11 @@ const Brands = () => {
                       {brand.createdAt ? new Date(brand.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}
                     </td>
                     <td className="px-6 py-4">
-                      <button className="text-blue-400 hover:text-blue-300 p-1">
+                      <button 
+                        onClick={() => handleEdit(brand)}
+                        className="text-blue-400 hover:text-blue-300 p-1"
+                        disabled={loading}
+                      >
                         <Edit size={16} />
                       </button>
                     </td>
@@ -168,7 +195,7 @@ const Brands = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-semibold text-blue-400">ADD BRAND</h3>
+              <h3 className="text-xl font-semibold text-blue-400">{selectedBrand ? 'EDIT BRAND' : 'ADD BRAND'}</h3>
               <button 
                 onClick={handleCancel}
                 className="text-gray-400 hover:text-white"
@@ -219,8 +246,9 @@ const Brands = () => {
                 <button
                   type="submit"
                   className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  disabled={loading}
                 >
-                  Submit
+                  {loading ? (selectedBrand ? 'Updating...' : 'Adding...') : (selectedBrand ? 'Update' : 'Submit')}
                 </button>
               </div>
             </form>

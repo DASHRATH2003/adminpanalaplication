@@ -7,6 +7,7 @@ const SubCategory = () => {
   const [subCategories, setSubCategories] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedSubCategory, setSelectedSubCategory] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
     category: '',
@@ -47,13 +48,25 @@ const SubCategory = () => {
     if (formData.name.trim() && formData.category.trim()) {
       try {
         setLoading(true);
-        const newSubCategory = await subCategoryService.add(formData);
-        setSubCategories(prev => [newSubCategory, ...prev]);
+        
+        if (selectedSubCategory) {
+          // Update existing sub category
+          const updatedSubCategory = await subCategoryService.update(selectedSubCategory.id, formData);
+          setSubCategories(prev => prev.map(subCat => 
+            subCat.id === selectedSubCategory.id ? updatedSubCategory : subCat
+          ));
+        } else {
+          // Add new sub category
+          const newSubCategory = await subCategoryService.add(formData);
+          setSubCategories(prev => [newSubCategory, ...prev]);
+        }
+        
         setFormData({ name: '', category: '', date: new Date().toISOString().split('T')[0] });
+        setSelectedSubCategory(null);
         setIsModalOpen(false);
       } catch (error) {
-        console.error('Error adding sub category:', error);
-        alert('Error adding sub category. Please try again.');
+        console.error('Error saving sub category:', error);
+        alert('Error saving sub category. Please try again.');
       } finally {
         setLoading(false);
       }
@@ -62,6 +75,7 @@ const SubCategory = () => {
 
   const handleCancel = () => {
     setFormData({ name: '', category: '', date: new Date().toISOString().split('T')[0] });
+    setSelectedSubCategory(null);
     setIsModalOpen(false);
   };
 
@@ -80,12 +94,22 @@ const SubCategory = () => {
     }
   };
 
+  const handleEdit = (subCategory) => {
+    setSelectedSubCategory(subCategory);
+    setFormData({
+      name: subCategory.name,
+      category: subCategory.category,
+      date: subCategory.date || new Date().toISOString().split('T')[0]
+    });
+    setIsModalOpen(true);
+  };
+
   const handleRefresh = () => {
     fetchAllData();
   };
 
   return (
-    <div className="p-4 lg:p-6 bg-gray-900 min-h-screen">
+    <div className="p-4 lg:p-6 bg-gray-900 h-full">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-semibold text-white">Sub Category</h2>
         <div className="flex items-center space-x-3">
@@ -143,7 +167,11 @@ const SubCategory = () => {
                       {subCategory.date ? new Date(subCategory.date).toLocaleDateString() : (subCategory.createdAt ? new Date(subCategory.createdAt.seconds * 1000).toLocaleDateString() : 'N/A')}
                     </td>
                     <td className="px-6 py-4">
-                      <button className="text-blue-400 hover:text-blue-300 p-1">
+                      <button 
+                        onClick={() => handleEdit(subCategory)}
+                        className="text-blue-400 hover:text-blue-300 p-1"
+                        disabled={loading}
+                      >
                         <Edit size={16} />
                       </button>
                     </td>
@@ -169,7 +197,7 @@ const SubCategory = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-semibold text-blue-400">ADD SUB CATEGORY</h3>
+              <h3 className="text-xl font-semibold text-blue-400">{selectedSubCategory ? 'EDIT SUB CATEGORY' : 'ADD SUB CATEGORY'}</h3>
               <button 
                 onClick={handleCancel}
                 className="text-gray-400 hover:text-white"
@@ -232,8 +260,9 @@ const SubCategory = () => {
                 <button
                   type="submit"
                   className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  disabled={loading}
                 >
-                  Submit
+                  {loading ? (selectedSubCategory ? 'Updating...' : 'Adding...') : (selectedSubCategory ? 'Update' : 'Submit')}
                 </button>
               </div>
             </form>

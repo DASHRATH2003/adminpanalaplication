@@ -6,6 +6,7 @@ const Category = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedCategory, setSelectedCategory] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
     image: null
@@ -60,15 +61,30 @@ const Category = () => {
     if (formData.name.trim()) {
       try {
         setLoading(true);
-        const newCategory = await categoryService.add(formData, imageFile);
-        setCategories(prev => [newCategory, ...prev]);
+        
+        if (selectedCategory) {
+          // Update existing category
+          console.log('Updating category with ID:', selectedCategory.id);
+          console.log('Form data:', formData);
+          const updatedCategory = await categoryService.update(selectedCategory.id, formData, imageFile);
+          console.log('Updated category received:', updatedCategory);
+          setCategories(prev => prev.map(cat => 
+            cat.id === selectedCategory.id ? updatedCategory : cat
+          ));
+        } else {
+          // Add new category
+          const newCategory = await categoryService.add(formData, imageFile);
+          setCategories(prev => [newCategory, ...prev]);
+        }
+        
         setFormData({ name: '', image: null });
         setImagePreview(null);
         setImageFile(null);
+        setSelectedCategory(null);
         setIsModalOpen(false);
       } catch (error) {
-        console.error('Error adding category:', error);
-        alert('Error adding category. Please try again.');
+        console.error('Error saving category:', error);
+        alert('Error saving category. Please try again.');
       } finally {
         setLoading(false);
       }
@@ -79,6 +95,7 @@ const Category = () => {
     setFormData({ name: '', image: null });
     setImagePreview(null);
     setImageFile(null);
+    setSelectedCategory(null);
     setIsModalOpen(false);
   };
 
@@ -86,15 +103,42 @@ const Category = () => {
     if (window.confirm('Are you sure you want to delete this category?')) {
       try {
         setLoading(true);
+        console.log('Deleting category with ID:', id);
+        
+        // Delete from Firebase
         await categoryService.delete(id);
-        setCategories(prev => prev.filter(cat => cat.id !== id));
+        console.log('Category deleted successfully from Firebase');
+        
+        // Update local state immediately
+        setCategories(prev => {
+          const updatedCategories = prev.filter(cat => cat.id !== id);
+          console.log('Updated categories list:', updatedCategories.length, 'categories remaining');
+          return updatedCategories;
+        });
+        
+        // Show success message
+        alert('Category deleted successfully!');
+        
       } catch (error) {
         console.error('Error deleting category:', error);
-        alert('Error deleting category. Please try again.');
+        alert(`Error deleting category: ${error.message}. Please try again.`);
+        
+        // Refresh data in case of error to show current state
+        fetchCategories();
       } finally {
         setLoading(false);
       }
     }
+  };
+
+  const handleEdit = (category) => {
+    setSelectedCategory(category);
+    setFormData({
+      name: category.name,
+      image: category.image
+    });
+    setImagePreview(category.image);
+    setIsModalOpen(true);
   };
 
   const handleRefresh = () => {
@@ -102,7 +146,7 @@ const Category = () => {
   };
 
   return (
-    <div className="p-4 lg:p-6 bg-gray-900 min-h-screen">
+    <div className="p-4 lg:p-6 bg-gray-900 h-full">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-semibold text-white">Category</h2>
         <div className="flex items-center space-x-3">
@@ -183,8 +227,8 @@ const Category = () => {
           <div className="bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-md mx-4">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h3 className="text-xl font-semibold text-white">Add New Category</h3>
-                <p className="text-sm text-gray-400 mt-1">Fill in the details below to create a new category</p>
+                <h3 className="text-xl font-semibold text-white">{selectedCategory ? 'Edit Category' : 'Add New Category'}</h3>
+                <p className="text-sm text-gray-400 mt-1">{selectedCategory ? 'Update the details below to edit the category' : 'Fill in the details below to create a new category'}</p>
               </div>
               <button 
                 onClick={handleCancel}
@@ -265,7 +309,7 @@ const Category = () => {
                   className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={loading}
                 >
-                  {loading ? 'Adding...' : 'Add Category'}
+                  {loading ? (selectedCategory ? 'Updating...' : 'Adding...') : (selectedCategory ? 'Update Category' : 'Add Category')}
                 </button>
               </div>
             </form>
