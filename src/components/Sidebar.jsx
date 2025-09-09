@@ -11,6 +11,8 @@ import {
   Image,
   User,
   MessageCircle,
+  Users,
+  UserCheck,
   X
 } from 'lucide-react';
 
@@ -22,6 +24,8 @@ const Sidebar = ({ isOpen, onClose }) => {
     { path: '/sub-under-category', icon: Layers3, label: 'Sub Under Category' },
     { path: '/brands', icon: Tag, label: 'Brands' },
     { path: '/orders', icon: ShoppingCart, label: 'Orders' },
+    { path: '/sellers', icon: Users, label: 'Seller' },
+    { path: '/customers', icon: UserCheck, label: 'Customers' },
     { path: '/messages', icon: MessageCircle, label: 'Messages' },
     { path: '/coupons', icon: Ticket, label: 'Coupons' },
     { path: '/posters', icon: Image, label: 'Posters' },

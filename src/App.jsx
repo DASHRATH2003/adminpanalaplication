@@ -10,6 +10,8 @@ import Brands from './pages/Brands';
 import VariantType from './pages/VariantType';
 import Variants from './pages/Variants';
 import Orders from './pages/Orders';
+import Sellers from './pages/Sellers';
+import Customers from './pages/Customers';
 import Messages from './pages/Messages';
 import Coupons from './pages/Coupons';
 import Posters from './pages/Posters';
@@ -51,6 +53,8 @@ const App = () => {
                   <Route path="/variant-type" element={<VariantType />} />
                   <Route path="/variants" element={<Variants />} />
                   <Route path="/orders" element={<Orders />} />
+                  <Route path="/sellers" element={<Sellers />} />
+                  <Route path="/customers" element={<Customers />} />
                   <Route path="/messages" element={<Messages />} />
                   <Route path="/coupons" element={<Coupons />} />
                   <Route path="/posters" element={<Posters />} />
