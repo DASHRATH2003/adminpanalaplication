@@ -5,9 +5,9 @@ const Profile = () => {
   // Mock user data - in real app this would come from authentication context
   const user = {
     name: 'Admin User',
-    email: 'admin@shop.com',
-    phone: '+91 9876543210',
-    address: 'Mumbai, Maharashtra, India',
+    email: 'support@sadhanacart.com',
+    phone: '+91 70195 12273',
+    address: 'Ground Floor, Ward No. 24, A No. 4-14-155/36A, Teachers Colony, Near LIC Office, Gangawati – 583222, District Koppal, Karnataka.',
     joinDate: 'January 2024',
     avatar: null
   };

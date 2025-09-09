@@ -60,7 +60,8 @@ const Login = () => {
       // Check valid credentials
       const validCredentials = [
         { email: 'admin@shop.com', password: 'admin123', name: 'DrDisagree' },
-        { email: 'sadhanacart@gmail.com', password: 'sadhana123', name: 'Sadhana Admin' }
+        { email: 'sadhanacart@gmail.com', password: 'sadhana123', name: 'Sadhana Admin' },
+        { email: 'support@sadhanacart.com', password: 'sadhanaCart@83', name: 'Support Admin' }
       ];
       
       const validUser = validCredentials.find(
@@ -217,14 +218,7 @@ const Login = () => {
             </button>
           </form>
 
-          {/* Demo Credentials */}
-          <div className="mt-6 p-4 bg-gray-700/50 rounded-lg border border-gray-600">
-            <p className="text-xs text-gray-400 mb-2">Demo Credentials:</p>
-            <div className="space-y-1">
-              <p className="text-xs text-gray-300">Email: admin@shop.com | Password: admin123</p>
-              <p className="text-xs text-gray-300">Email: sadhanacart@gmail.com | Password: sadhana123</p>
-            </div>
-          </div>
+
         </div>
       </div>
     </div>

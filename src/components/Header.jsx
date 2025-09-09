@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 
 const Header = ({ onToggleSidebar }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [userData, setUserData] = useState({ name: 'Admin', email: 'admin@shop.com' });
+  const [userData, setUserData] = useState({ name: 'Support Admin', email: 'support@sadhanacart.com' });
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -13,8 +13,8 @@ const Header = ({ onToggleSidebar }) => {
     if (storedUserData) {
       const parsedData = JSON.parse(storedUserData);
       setUserData({
-        name: parsedData.name || 'Admin',
-        email: parsedData.email || 'admin@shop.com'
+        name: parsedData.name || 'Support Admin',
+        email: parsedData.email || 'support@sadhanacart.com'
       });
     }
   }, []);
