@@ -1,10 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search, ChevronDown, User, LogOut, UserCircle, Menu } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const Header = ({ onToggleSidebar }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [userData, setUserData] = useState({ name: 'Admin', email: 'admin@shop.com' });
   const navigate = useNavigate();
+
+  useEffect(() => {
+    // Get user data from localStorage
+    const storedUserData = localStorage.getItem('userData');
+    if (storedUserData) {
+      const parsedData = JSON.parse(storedUserData);
+      setUserData({
+        name: parsedData.name || 'Admin',
+        email: parsedData.email || 'admin@shop.com'
+      });
+    }
+  }, []);
 
   const handleLogout = () => {
     // Clear any stored authentication data
@@ -51,7 +64,7 @@ const Header = ({ onToggleSidebar }) => {
               <div className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center">
                 <User size={18} className="text-white" />
               </div>
-              <span className="font-medium hidden sm:block">DrDisagree</span>
+              <span className="font-medium hidden sm:block">{userData.name}</span>
               <ChevronDown size={16} className={`text-gray-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''} hidden sm:block`} />
             </div>
 
@@ -60,8 +73,8 @@ const Header = ({ onToggleSidebar }) => {
               <div className="absolute right-0 mt-2 w-48 bg-gray-700 rounded-lg shadow-lg border border-gray-600 z-50">
                 <div className="py-2">
                   <div className="px-4 py-2 border-b border-gray-600">
-                    <p className="text-sm font-medium text-white">DrDisagree</p>
-                    <p className="text-xs text-gray-400">admin@shop.com</p>
+                    <p className="text-sm font-medium text-white">{userData.name}</p>
+                    <p className="text-xs text-gray-400">{userData.email}</p>
                   </div>
                   
                   <button 

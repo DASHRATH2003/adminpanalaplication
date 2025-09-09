@@ -57,13 +57,29 @@ const Login = () => {
     setIsLoading(true);
     
     try {
+      // Check valid credentials
+      const validCredentials = [
+        { email: 'admin@shop.com', password: 'admin123', name: 'DrDisagree' },
+        { email: 'sadhanacart@gmail.com', password: 'sadhana123', name: 'Sadhana Admin' }
+      ];
+      
+      const validUser = validCredentials.find(
+        user => user.email === formData.email && user.password === formData.password
+      );
+      
+      if (!validUser) {
+        setErrors({ general: 'Invalid email or password' });
+        setIsLoading(false);
+        return;
+      }
+      
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       // Store authentication data
       localStorage.setItem('authToken', 'dummy-token-123');
       localStorage.setItem('userData', JSON.stringify({
-        name: 'DrDisagree',
+        name: validUser.name,
         email: formData.email,
         role: 'admin'
       }));
@@ -204,8 +220,10 @@ const Login = () => {
           {/* Demo Credentials */}
           <div className="mt-6 p-4 bg-gray-700/50 rounded-lg border border-gray-600">
             <p className="text-xs text-gray-400 mb-2">Demo Credentials:</p>
-            <p className="text-xs text-gray-300">Email: admin@shop.com</p>
-            <p className="text-xs text-gray-300">Password: admin123</p>
+            <div className="space-y-1">
+              <p className="text-xs text-gray-300">Email: admin@shop.com | Password: admin123</p>
+              <p className="text-xs text-gray-300">Email: sadhanacart@gmail.com | Password: sadhana123</p>
+            </div>
           </div>
         </div>
       </div>
