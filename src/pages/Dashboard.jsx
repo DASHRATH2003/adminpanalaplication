@@ -315,11 +315,17 @@ const Dashboard = () => {
       console.log('Upload completed:', results);
       
       if (results.success && results.success.length > 0) {
+        // Log all generated IDs
+        console.log('Generated Product IDs:');
+        results.success.forEach((item, index) => {
+          console.log(`${index + 1}. ${item.product.name} - ID: ${item.id}`);
+        });
+        
         // Refresh products list to show newly uploaded products
         await fetchAllData();
         
-        // Show success message
-        alert(`Successfully uploaded ${results.success.length} products!${results.errors && results.errors.length > 0 ? ` ${results.errors.length} products failed.` : ''}`);
+        // Show success message with ID count
+        alert(`Successfully uploaded ${results.success.length} products with unique IDs!${results.errors && results.errors.length > 0 ? ` ${results.errors.length} products failed.` : ''}`);
       }
       
       if (results.errors && results.errors.length > 0) {

@@ -10,6 +10,7 @@ import Brands from './pages/Brands';
 import VariantType from './pages/VariantType';
 import Variants from './pages/Variants';
 import Orders from './pages/Orders';
+import Messages from './pages/Messages';
 import Coupons from './pages/Coupons';
 import Posters from './pages/Posters';
 import Notifications from './pages/Notifications';
@@ -50,6 +51,7 @@ const App = () => {
                   <Route path="/variant-type" element={<VariantType />} />
                   <Route path="/variants" element={<Variants />} />
                   <Route path="/orders" element={<Orders />} />
+                  <Route path="/messages" element={<Messages />} />
                   <Route path="/coupons" element={<Coupons />} />
                   <Route path="/posters" element={<Posters />} />
                   <Route path="/notifications" element={<Notifications />} />

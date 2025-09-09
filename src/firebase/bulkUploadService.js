@@ -84,9 +84,13 @@ class BulkUploadService {
           // Create new document reference
           const productRef = doc(collection(db, 'products'));
           
+          // Debug: Log the generated ID
+          console.log(`Generated ID for product ${validatedProduct.name}: ${productRef.id}`);
+          
           // Add to batch
           batch.set(productRef, {
-            ...validatedProduct
+            ...validatedProduct,
+            id: productRef.id // Explicitly add ID to document
           });
           
           results.success.push({

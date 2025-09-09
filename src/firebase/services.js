@@ -8,11 +8,15 @@ import {
   updateDoc,
   query,
   orderBy,
-  serverTimestamp
+  serverTimestamp,
+  onSnapshot,
+  where,
+  limit
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from './config';
 
+// Categories Services
 // Categories Services
 export const categoryService = {
   // Get all categories
@@ -47,17 +51,16 @@ export const categoryService = {
         const snapshot = await uploadBytes(imageRef, imageFile);
         imageUrl = await getDownloadURL(snapshot.ref);
       }
-      
-      const docRef = await addDoc(collection(db, 'category'), {
-        name: categoryData.name,
-        image: imageUrl
-      });
 
-      return {
-        id: docRef.id,
-        name: categoryData.name,
-        image: imageUrl
-      };
+      const docRef = await addDoc(collection(db, 'category'), {
+        ...categoryData,
+        image: imageUrl,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      
+      console.log('Category added with ID:', docRef.id);
+      return docRef.id;
     } catch (error) {
       console.error('Error adding category:', error);
       throw error;
@@ -67,9 +70,6 @@ export const categoryService = {
   // Delete category
   async delete(categoryId) {
     try {
-      console.log('Delete method called with categoryId:', categoryId);
-      console.log('Attempting direct deletion...');
-      
       await deleteDoc(doc(db, 'category', categoryId));
       console.log('Category deleted successfully');
     } catch (error) {
@@ -81,68 +81,209 @@ export const categoryService = {
   // Update category
   async update(categoryId, categoryData, imageFile) {
     try {
-      console.log('Update method called with categoryId:', categoryId);
-      console.log('CategoryId type:', typeof categoryId);
-      console.log('Category data:', categoryData);
-      console.log('Image file:', imageFile);
-      
-      // Get all categories to find the right one
-      const querySnapshot = await getDocs(collection(db, 'category'));
-      let targetDoc = null;
-      let targetDocId = null;
-      
-      // Search through all documents
-      querySnapshot.docs.forEach(doc => {
-        const data = doc.data();
-        console.log('Checking document:', doc.id, 'with data:', data);
-        
-        // First try to match by exact ID
-        if (doc.id === categoryId) {
-          targetDoc = doc;
-          targetDocId = doc.id;
-          console.log('Found exact ID match:', doc.id);
-        }
-        // If no exact ID match, try to match by name and existing data
-        else if (!targetDoc && data.name && categoryData.name && 
-                 data.name.toLowerCase().trim() === categoryData.name.toLowerCase().trim()) {
-          targetDoc = doc;
-          targetDocId = doc.id;
-          console.log('Found name match:', doc.id, 'for name:', data.name);
-        }
-      });
-      
-      if (!targetDoc) {
-        console.error('Category document not found for ID:', categoryId);
-        throw new Error('Category not found');
-      }
-      
-      const currentCategory = targetDoc.data();
-      console.log('Current category data:', currentCategory);
-      let imageUrl = currentCategory.image;
+      let updateData = { ...categoryData };
       
       // Upload new image if provided
       if (imageFile) {
         const imageRef = ref(storage, `categories/${Date.now()}_${imageFile.name}`);
         const snapshot = await uploadBytes(imageRef, imageFile);
-        imageUrl = await getDownloadURL(snapshot.ref);
+        const imageUrl = await getDownloadURL(snapshot.ref);
+        updateData.image = imageUrl;
       }
       
-      const updatedData = {
-        ...categoryData,
-        image: imageUrl
-      };
+      updateData.updatedAt = serverTimestamp();
       
-      console.log('Updating document with ID:', targetDocId, 'with data:', updatedData);
-      const categoryRef = doc(db, 'category', targetDocId);
-      await updateDoc(categoryRef, updatedData);
-      
-      return {
-        id: targetDocId,
-        ...currentCategory,
-        ...updatedData
-      };
+      await updateDoc(doc(db, 'category', categoryId), updateData);
+      console.log('Category updated successfully');
     } catch (error) {
       console.error('Error updating category:', error);
+      throw error;
+    }
+  }
+};
+
+export const userService = {
+  // Get all users
+  async getAll() {
+    try {
+      console.log('Fetching data from Users collection...');
+      const querySnapshot = await getDocs(collection(db, 'users'));
+      const users = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        console.log('Document ID:', doc.id, 'Document data:', data);
+        return {
+          id: doc.id,
+          ...data
+        };
+      });
+      console.log('Users found:', users.length, users);
+      return users;
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      throw error;
+    }
+  }
+};
+
+
+
+// Messages and Conversations Services
+export const messageService = {
+  // Get all conversations
+  async getConversations() {
+    try {
+      const q = query(
+        collection(db, 'conversations'),
+        orderBy('lastMessageTime', 'desc')
+      );
+      const querySnapshot = await getDocs(q);
+      const conversations = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      return conversations;
+    } catch (error) {
+      console.error('Error fetching conversations:', error);
+      throw error;
+    }
+  },
+
+  // Get messages for a specific conversation
+  async getMessages(conversationId) {
+    try {
+      const q = query(
+        collection(db, 'messages'),
+        where('conversationId', '==', conversationId),
+        orderBy('timestamp', 'asc')
+      );
+      const querySnapshot = await getDocs(q);
+      const messages = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      return messages;
+    } catch (error) {
+      console.error('Error fetching messages:', error);
+      throw error;
+    }
+  },
+
+  // Send a new message
+  async sendMessage(messageData) {
+    try {
+      const message = {
+        ...messageData,
+        timestamp: serverTimestamp(),
+        status: 'sent'
+      };
+      
+      const docRef = await addDoc(collection(db, 'messages'), message);
+      
+      // Update conversation with last message
+      await this.updateConversation(messageData.conversationId, {
+        lastMessage: messageData.message,
+        lastMessageTime: serverTimestamp(),
+        lastMessageSender: messageData.senderId
+      });
+      
+      return docRef.id;
+    } catch (error) {
+      console.error('Error sending message:', error);
+      throw error;
+    }
+  },
+
+  // Create or update conversation
+  async createConversation(conversationData) {
+    try {
+      const conversation = {
+        ...conversationData,
+        createdAt: serverTimestamp(),
+        lastMessageTime: serverTimestamp()
+      };
+      
+      const docRef = await addDoc(collection(db, 'conversations'), conversation);
+      return docRef.id;
+    } catch (error) {
+      console.error('Error creating conversation:', error);
+      throw error;
+    }
+  },
+
+  // Update conversation
+  async updateConversation(conversationId, updateData) {
+    try {
+      const conversationRef = doc(db, 'conversations', conversationId);
+      await updateDoc(conversationRef, updateData);
+    } catch (error) {
+      console.error('Error updating conversation:', error);
+      throw error;
+    }
+  },
+
+  // Listen to real-time messages
+  subscribeToMessages(conversationId, callback) {
+    const q = query(
+      collection(db, 'messages'),
+      where('conversationId', '==', conversationId),
+      orderBy('timestamp', 'asc')
+    );
+    
+    return onSnapshot(q, (querySnapshot) => {
+      const messages = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      callback(messages);
+    });
+  },
+
+  // Listen to real-time conversations
+  subscribeToConversations(callback) {
+    const q = query(
+      collection(db, 'conversations'),
+      orderBy('lastMessageTime', 'desc')
+    );
+    
+    return onSnapshot(q, (querySnapshot) => {
+      const conversations = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      callback(conversations);
+    });
+  },
+
+  // Mark message as read
+  async markAsRead(messageId) {
+    try {
+      const messageRef = doc(db, 'messages', messageId);
+      await updateDoc(messageRef, {
+        status: 'read',
+        readAt: serverTimestamp()
+      });
+    } catch (error) {
+      console.error('Error marking message as read:', error);
+      throw error;
+    }
+  },
+
+  // Clear all conversations and messages
+  async clearAllData() {
+    try {
+      // Delete all messages
+      const messagesSnapshot = await getDocs(collection(db, 'messages'));
+      const messageDeletePromises = messagesSnapshot.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(messageDeletePromises);
+      
+      // Delete all conversations
+      const conversationsSnapshot = await getDocs(collection(db, 'conversations'));
+      const conversationDeletePromises = conversationsSnapshot.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(conversationDeletePromises);
+      
+      console.log('All conversations and messages cleared successfully');
+    } catch (error) {
+      console.error('Error clearing data:', error);
       throw error;
     }
   }

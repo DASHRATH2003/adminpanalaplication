@@ -10,7 +10,7 @@ import {
   Ticket,
   Image,
   User,
-
+  MessageCircle,
   X
 } from 'lucide-react';
 
@@ -22,6 +22,7 @@ const Sidebar = ({ isOpen, onClose }) => {
     { path: '/sub-under-category', icon: Layers3, label: 'Sub Under Category' },
     { path: '/brands', icon: Tag, label: 'Brands' },
     { path: '/orders', icon: ShoppingCart, label: 'Orders' },
+    { path: '/messages', icon: MessageCircle, label: 'Messages' },
     { path: '/coupons', icon: Ticket, label: 'Coupons' },
     { path: '/posters', icon: Image, label: 'Posters' },
     { path: '/profile', icon: User, label: 'Profile' },
