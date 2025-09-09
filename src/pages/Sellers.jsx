@@ -47,7 +47,8 @@ const Sellers = () => {
         </div>
       </div>
 
-      <div className="bg-gray-800 rounded-lg overflow-hidden">
+      {/* Desktop Table View */}
+      <div className="hidden md:block bg-gray-800 rounded-lg overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-700">
@@ -150,6 +151,86 @@ const Sellers = () => {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Mobile Card View */}
+      <div className="md:hidden space-y-4">
+        {sellers.length === 0 ? (
+          <div className="bg-gray-800 rounded-lg p-6 text-center">
+            <Users className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+            <p className="text-lg font-medium text-gray-300">No sellers found</p>
+            <p className="text-sm text-gray-400">Sellers data will appear here when available in Firebase</p>
+          </div>
+        ) : (
+          sellers.map((seller) => (
+            <div key={seller.id} className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+              {/* Seller Header */}
+              <div className="flex items-center mb-4">
+                <div className="flex-shrink-0 h-12 w-12">
+                  <div className="h-12 w-12 rounded-full bg-blue-500 flex items-center justify-center">
+                    <span className="text-white font-medium text-lg">
+                      {seller.name ? seller.name.charAt(0).toUpperCase() : 'S'}
+                    </span>
+                  </div>
+                </div>
+                <div className="ml-4 flex-1">
+                  <h3 className="text-lg font-medium text-white">
+                    {seller.name || 'Unknown Seller'}
+                  </h3>
+                  <p className="text-sm text-gray-400">
+                    ID: {seller.id.substring(0, 20)}...
+                  </p>
+                </div>
+                <div className="ml-2">
+                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                    seller.status === 'active' 
+                      ? 'bg-green-100 text-green-800'
+                      : seller.status === 'pending'
+                      ? 'bg-yellow-100 text-yellow-800'
+                      : 'bg-red-100 text-red-800'
+                  }`}>
+                    {seller.status || 'Unknown'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Contact Info */}
+              <div className="space-y-2 mb-4">
+                {seller.email && (
+                  <div className="flex items-center text-sm text-gray-300">
+                    <Mail className="h-4 w-4 mr-2 text-blue-400" />
+                    <span className="break-all">{seller.email}</span>
+                  </div>
+                )}
+                {seller.phone && (
+                  <div className="flex items-center text-sm text-gray-300">
+                    <Phone className="h-4 w-4 mr-2 text-green-400" />
+                    <span>{seller.phone}</span>
+                  </div>
+                )}
+                <div className="flex items-center text-sm text-gray-300">
+                  <Calendar className="h-4 w-4 mr-2 text-purple-400" />
+                  <span>
+                    {seller.createdAt ? new Date(seller.createdAt.toDate()).toLocaleDateString() : 'N/A'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex space-x-2">
+                <button className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-3 rounded-lg text-sm font-medium transition-colors">
+                  View
+                </button>
+                <button className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 px-3 rounded-lg text-sm font-medium transition-colors">
+                  Approve
+                </button>
+                <button className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 px-3 rounded-lg text-sm font-medium transition-colors">
+                  Block
+                </button>
+              </div>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );

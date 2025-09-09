@@ -172,7 +172,8 @@ const Category = () => {
         <h3 className="text-lg font-medium text-white mb-4">My Categories</h3>
       </div>
 
-      <div className="bg-gray-800 rounded-lg overflow-hidden">
+      {/* Desktop Table View */}
+      <div className="hidden lg:block bg-gray-800 rounded-lg overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-700">
@@ -221,6 +222,44 @@ const Category = () => {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Mobile Card View */}
+      <div className="lg:hidden space-y-4">
+        {loading ? (
+          <div className="bg-gray-800 rounded-lg p-6 text-center text-gray-400">
+            Loading categories...
+          </div>
+        ) : categories.length === 0 ? (
+          <div className="bg-gray-800 rounded-lg p-6 text-center text-gray-400">
+            No categories found
+          </div>
+        ) : (
+          categories.map((category) => (
+            <div key={category.id} className="bg-gray-800 rounded-lg p-4">
+              <div className="flex items-center space-x-4">
+                <img src={category.image} alt={category.name} className="h-16 w-16 rounded-full object-cover" />
+                <div className="flex-1">
+                  <h3 className="text-white font-medium text-lg">{category.name}</h3>
+                </div>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => handleEdit(category)}
+                    className="text-indigo-400 hover:text-indigo-300 p-2 bg-gray-700 rounded-lg"
+                  >
+                    <Edit size={16} />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(category.id)}
+                    className="text-red-400 hover:text-red-300 p-2 bg-gray-700 rounded-lg"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
       </div>
 
       {/* Add Category Modal */}

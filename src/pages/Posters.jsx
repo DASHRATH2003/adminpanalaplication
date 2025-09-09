@@ -333,7 +333,8 @@ const Posters = () => {
         <h3 className="text-lg font-medium text-white mb-4">My Posters</h3>
       </div>
 
-      <div className="bg-gray-800 rounded-lg overflow-hidden">
+      {/* Desktop Table View */}
+      <div className="hidden md:block bg-gray-800 rounded-lg overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-700">
@@ -408,6 +409,75 @@ const Posters = () => {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Mobile Card View */}
+      <div className="md:hidden space-y-4">
+        {loading ? (
+          <div className="bg-gray-800 rounded-lg p-6 text-center">
+            <p className="text-gray-400">Loading posters...</p>
+          </div>
+        ) : posters.length === 0 ? (
+          <div className="bg-gray-800 rounded-lg p-6 text-center">
+            <p className="text-gray-400">No posters available</p>
+          </div>
+        ) : (
+          posters.map((poster) => (
+            <div key={poster.id} className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+              {/* Poster Header */}
+              <div className="flex items-start space-x-4 mb-4">
+                <div className="flex-shrink-0">
+                  {poster.image ? (
+                    <img 
+                      src={poster.image} 
+                      alt={poster.title}
+                      className="w-20 h-20 object-cover rounded-lg"
+                    />
+                  ) : (
+                    <div className="w-20 h-20 bg-gray-600 rounded-lg flex items-center justify-center">
+                      <Camera size={24} className="text-gray-400" />
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-lg font-medium text-white mb-2 break-words">
+                    {poster.title}
+                  </h3>
+                  <div className="flex items-center justify-between">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      poster.status === 'active' 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-red-100 text-red-800'
+                    }`}>
+                      {poster.status}
+                    </span>
+                    <span className="text-sm text-gray-400">
+                      {formatDate(poster.createdAt)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => handleEdit(poster)}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-3 rounded-lg text-sm font-medium transition-colors flex items-center justify-center space-x-2"
+                >
+                  <Edit size={16} />
+                  <span>Edit</span>
+                </button>
+                <button
+                  onClick={() => handleDelete(poster.id)}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 px-3 rounded-lg text-sm font-medium transition-colors flex items-center justify-center space-x-2"
+                >
+                  <Trash2 size={16} />
+                  <span>Delete</span>
+                </button>
+              </div>
+            </div>
+          ))
+        )}
       </div>
 
       {/* Add/Edit Poster Modal */}

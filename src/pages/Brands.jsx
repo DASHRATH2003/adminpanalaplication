@@ -131,7 +131,8 @@ const Brands = () => {
         <h3 className="text-lg font-medium text-white mb-4">My Brands</h3>
       </div>
 
-      <div className="bg-gray-800 rounded-lg overflow-hidden">
+      {/* Desktop Table View */}
+      <div className="hidden lg:block bg-gray-800 rounded-lg overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-700">
@@ -188,6 +189,49 @@ const Brands = () => {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Mobile Card View */}
+      <div className="lg:hidden space-y-4">
+        {loading ? (
+          <div className="bg-gray-800 rounded-lg p-6 text-center text-gray-400">
+            Loading brands...
+          </div>
+        ) : brands.length === 0 ? (
+          <div className="bg-gray-800 rounded-lg p-6 text-center text-gray-400">
+            No brands available
+          </div>
+        ) : (
+          brands.map((brand) => (
+            <div key={brand.id} className="bg-gray-800 rounded-lg p-4">
+              <div className="flex justify-between items-start mb-3">
+                <div className="flex-1">
+                  <h3 className="text-white font-medium text-lg">{brand.name}</h3>
+                  <p className="text-gray-300 text-sm mt-1">{brand.subCategory}</p>
+                </div>
+                <div className="flex space-x-2 ml-4">
+                  <button 
+                    onClick={() => handleEdit(brand)}
+                    className="text-blue-400 hover:text-blue-300 p-2 bg-gray-700 rounded-lg"
+                    disabled={loading}
+                  >
+                    <Edit size={16} />
+                  </button>
+                  <button 
+                    onClick={() => handleDelete(brand.id)}
+                    className="text-red-400 hover:text-red-300 p-2 bg-gray-700 rounded-lg"
+                    disabled={loading}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+              <div className="text-gray-400 text-sm">
+                Added: {brand.createdAt ? new Date(brand.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}
+              </div>
+            </div>
+          ))
+        )}
       </div>
 
       {/* Add Brand Modal */}

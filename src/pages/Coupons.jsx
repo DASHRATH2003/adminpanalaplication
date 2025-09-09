@@ -21,7 +21,8 @@ const Coupons = () => {
         <h3 className="text-lg font-medium text-white mb-4">My Coupons</h3>
       </div>
 
-      <div className="bg-gray-800 rounded-lg overflow-hidden">
+      {/* Desktop Table View */}
+      <div className="hidden md:block bg-gray-800 rounded-lg overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-700">
@@ -42,6 +43,13 @@ const Coupons = () => {
               </tr>
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* Mobile Card View */}
+      <div className="md:hidden space-y-4">
+        <div className="bg-gray-800 rounded-lg p-6 text-center">
+          <p className="text-gray-400">No coupons available</p>
         </div>
       </div>
     </div>
