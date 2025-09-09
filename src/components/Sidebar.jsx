@@ -50,11 +50,13 @@ const Sidebar = ({ isOpen, onClose }) => {
         {/* Logo */}
         <div className="p-6 border-b border-gray-700">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-lg">S</span>
-              </div>
-              <span className="text-xl font-semibold">Shop</span>
+            <div className="flex items-center space-x-3">
+              <img 
+              src="/sadhanacutlogo.jpeg" 
+              alt="Sadhana Logo" 
+              className="h-10 w-auto rounded"
+            />
+              <span className="text-xl font-semibold">Sadhana cart</span>
             </div>
             {/* Close button for mobile */}
             <button 
