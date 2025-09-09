@@ -18,7 +18,7 @@ const Dashboard = () => {
     brand: '',
     category: '',
     subCategory: '',
-    attribute: '',
+    attributes: {},
     stock: '',
     sku: '',
     offerPrice: '',
@@ -344,18 +344,38 @@ const Dashboard = () => {
   const handleCategoryInputChange = (e) => {
     const { name, value } = e.target;
     
-    // Update form data with the new value
-    setCategoryFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-    
-    // No auto-fill for attributes when category changes as per user request
-    if (name === 'category') {
+    // Handle dynamic attribute fields
+    if (name.startsWith('attribute_')) {
+      // Get the attribute name from the field name
+      const attributeName = name.replace('attribute_', '').replace(/_/g, ' ');
+      
+      // Update the categoryFormData with the new attribute value
+      setCategoryFormData(prev => {
+        const currentAttributes = prev.attributes || {};
+        const updatedAttributes = {
+          ...currentAttributes,
+          [attributeName]: value
+        };
+        
+        return {
+          ...prev,
+          attributes: updatedAttributes
+        };
+      });
+    } else {
+      // Handle regular form fields
       setCategoryFormData(prev => ({
         ...prev,
-        attribute: ''
+        [name]: value
       }));
+      
+      // Clear attributes when category changes
+      if (name === 'category') {
+        setCategoryFormData(prev => ({
+          ...prev,
+          attributes: {}
+        }));
+      }
     }
   };
 
@@ -434,13 +454,6 @@ const Dashboard = () => {
   const handleCategorySubmit = async (e) => {
     e.preventDefault();
     if (categoryFormData.name.trim()) {
-      // Validate if attribute belongs to selected category
-      if (categoryFormData.attribute && categoryFormData.category && 
-          !isAttributeValidForCategory(categoryFormData.attribute, categoryFormData.category)) {
-        alert(`The attribute "${categoryFormData.attribute}" is not valid for the selected category "${categoryFormData.category}". Please select a valid attribute.`);
-        return;
-      }
-      
       try {
         setLoading(true);
         
@@ -453,7 +466,7 @@ const Dashboard = () => {
           brand: categoryFormData.brand,
           category: categoryFormData.category,
           subCategory: categoryFormData.subCategory,
-          attribute: categoryFormData.attribute,
+          attributes: categoryFormData.attributes || {},
           stock: parseInt(categoryFormData.stock) || 0,
           sku: categoryFormData.sku,
           cashOnDelivery: categoryFormData.cashOnDelivery,
@@ -471,6 +484,7 @@ const Dashboard = () => {
           category: '',
           subCategory: '',
           attribute: '',
+          attributes: {},
           stock: '',
           sku: '',
           offerPrice: '',
@@ -498,7 +512,7 @@ const Dashboard = () => {
       brand: '',
       category: '',
       subCategory: '',
-      attribute: '',
+      attributes: {},
       stock: '',
       sku: '',
       offerPrice: '',
@@ -1327,7 +1341,9 @@ const Dashboard = () => {
                           <input
                             type="text"
                             name={`attribute_${attribute.replace(/[^a-zA-Z0-9]/g, '_')}`}
+                            value={categoryFormData.attributes?.[attribute] || ''}
                             placeholder={`Enter ${attribute}`}
+                            onChange={handleCategoryInputChange}
                             className="w-full px-4 py-3 bg-gray-800 border border-gray-500 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
                             disabled={loading}
                           />
@@ -1337,25 +1353,7 @@ const Dashboard = () => {
                   </div>
                 )}
                 
-                {/* Fallback Attribute Input */}
-                {(!categoryFormData.category || !categoryAttributes[categoryFormData.category]) && (
-                  <div className="col-span-1 md:col-span-2 mb-4 relative attribute-dropdown-container">
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      Attribute
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        name="attribute"
-                        value={categoryFormData.attribute}
-                        onChange={handleCategoryInputChange}
-                        placeholder="Enter product attributes (comma separated)"
-                        className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-                        disabled={loading}
-                      />
-                    </div>
-                  </div>
-                )}
+
 
                 {/* Stock */}
                 <div className="mb-4">

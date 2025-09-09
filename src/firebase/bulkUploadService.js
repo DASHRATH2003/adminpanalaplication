@@ -86,9 +86,7 @@ class BulkUploadService {
           
           // Add to batch
           batch.set(productRef, {
-            ...validatedProduct,
-            createdAt: new Date(),
-            updatedAt: new Date()
+            ...validatedProduct
           });
           
           results.success.push({

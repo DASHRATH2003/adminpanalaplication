@@ -50,8 +50,7 @@ export const categoryService = {
       
       const docRef = await addDoc(collection(db, 'category'), {
         name: categoryData.name,
-        image: imageUrl,
-        createdAt: serverTimestamp()
+        image: imageUrl
       });
 
       return {
@@ -83,7 +82,9 @@ export const categoryService = {
   async update(categoryId, categoryData, imageFile) {
     try {
       console.log('Update method called with categoryId:', categoryId);
+      console.log('CategoryId type:', typeof categoryId);
       console.log('Category data:', categoryData);
+      console.log('Image file:', imageFile);
       
       // Get all categories to find the right one
       const querySnapshot = await getDocs(collection(db, 'category'));
@@ -128,8 +129,7 @@ export const categoryService = {
       
       const updatedData = {
         ...categoryData,
-        image: imageUrl,
-        updatedAt: serverTimestamp()
+        image: imageUrl
       };
       
       console.log('Updating document with ID:', targetDocId, 'with data:', updatedData);
@@ -143,6 +143,93 @@ export const categoryService = {
       };
     } catch (error) {
       console.error('Error updating category:', error);
+      throw error;
+    }
+  }
+};
+
+// Sub Under Categories Services
+export const subUnderCategoryService = {
+  // Get all sub under categories
+  async getAll() {
+    try {
+      console.log('Fetching data from SubUnderCategories collection...');
+      const querySnapshot = await getDocs(collection(db, 'subundercategory'));
+      const subUnderCategories = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        data: doc.data()
+      }));
+      console.log('Sub Under Categories found:', subUnderCategories.length, subUnderCategories);
+      return subUnderCategories;
+    } catch (error) {
+      console.error('Error fetching sub under categories:', error);
+      throw error;
+    }
+  },
+
+  // Add new sub under category
+  async add(subUnderCategoryData) {
+    try {
+      const docRef = await addDoc(collection(db, 'subundercategory'), {
+        id: '',
+        name: subUnderCategoryData.name,
+        subCategoryId: subUnderCategoryData.subCategoryId,
+        date: subUnderCategoryData.date
+      });
+
+      // Update the document with its own ID
+      await updateDoc(doc(db, 'subundercategory', docRef.id), {
+        id: docRef.id
+      });
+
+      return {
+        id: docRef.id,
+        name: subUnderCategoryData.name,
+        subCategoryId: subUnderCategoryData.subCategoryId,
+        date: subUnderCategoryData.date
+      };
+    } catch (error) {
+      console.error('Error adding sub under category:', error);
+      throw error;
+    }
+  },
+
+  // Delete sub under category
+  async delete(subUnderCategoryId) {
+    try {
+      console.log('Delete sub under category method called with ID:', subUnderCategoryId);
+      await deleteDoc(doc(db, 'subundercategory', subUnderCategoryId));
+      console.log('Sub Under Category deleted successfully');
+    } catch (error) {
+      console.error('Error deleting sub under category:', error);
+      throw error;
+    }
+  },
+
+  // Update sub under category
+  async update(subUnderCategoryId, subUnderCategoryData) {
+    try {
+      console.log('Update sub under category method called with ID:', subUnderCategoryId);
+      console.log('Sub Under Category data:', subUnderCategoryData);
+      
+      const subUnderCategoryRef = doc(db, 'subundercategory', subUnderCategoryId);
+      
+      await updateDoc(subUnderCategoryRef, {
+        name: subUnderCategoryData.name,
+        subCategoryId: subUnderCategoryData.subCategoryId,
+        date: subUnderCategoryData.date
+      });
+      
+      console.log('Sub Under Category updated successfully');
+      
+      // Return updated data
+      const updatedDoc = await getDoc(subUnderCategoryRef);
+      return {
+        id: updatedDoc.id,
+        data: updatedDoc.data()
+      };
+    } catch (error) {
+      console.error('Error updating sub under category:', error);
       throw error;
     }
   }
@@ -193,14 +280,13 @@ export const productService = {
         offerPrice: parseFloat(productData.offerPrice) || 0,
         brand: productData.brand || '',
         attribute: productData.attribute || '',
+        attributes: productData.attributes || {},
         stock: parseInt(productData.stock) || 0,
         sku: productData.sku || '',
         cashOnDelivery: productData.cashOnDelivery || 'no',
         date: productData.date || new Date().toISOString().split('T')[0],
         images: imageUrls,
-        image: imageUrls[0] || null, // Keep backward compatibility
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+        image: imageUrls[0] || null // Keep backward compatibility
       });
 
       return {
@@ -213,14 +299,13 @@ export const productService = {
         offerPrice: parseFloat(productData.offerPrice) || 0,
         brand: productData.brand || '',
         attribute: productData.attribute || '',
+        attributes: productData.attributes || {},
         stock: parseInt(productData.stock) || 0,
         sku: productData.sku || '',
         cashOnDelivery: productData.cashOnDelivery || 'no',
         date: productData.date || new Date().toISOString().split('T')[0],
         images: imageUrls,
-        image: imageUrls[0] || null,
-        createdAt: new Date(),
-        updatedAt: new Date()
+        image: imageUrls[0] || null
       };
     } catch (error) {
       console.error('Error adding product:', error);
@@ -258,15 +343,13 @@ export const productService = {
       }
       
       await updateDoc(doc(db, 'products', productId), {
-        ...updateData,
-        updatedAt: serverTimestamp()
+        ...updateData
       });
       
       // Return updated product data
       return {
         id: productId,
-        ...updateData,
-        updatedAt: new Date()
+        ...updateData
       };
     } catch (error) {
       console.error('Error updating product:', error);
@@ -298,20 +381,20 @@ export const subCategoryService = {
   async add(subCategoryData) {
     try {
       const docRef = await addDoc(collection(db, 'subcategory'), {
+        id: '',
         name: subCategoryData.name,
-        category: subCategoryData.category,
-        date: subCategoryData.date,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+        category: subCategoryData.category
+      });
+
+      // Update the document with its own ID
+      await updateDoc(doc(db, 'subcategory', docRef.id), {
+        id: docRef.id
       });
 
       return {
         id: docRef.id,
         name: subCategoryData.name,
-        category: subCategoryData.category,
-        date: subCategoryData.date,
-        createdAt: new Date(),
-        updatedAt: new Date()
+        category: subCategoryData.category
       };
     } catch (error) {
       console.error('Error adding sub category:', error);
@@ -368,8 +451,7 @@ export const subCategoryService = {
       
       console.log('Updating subcategory document with ID:', targetDocId);
       await updateDoc(doc(db, 'subcategory', targetDocId), {
-        ...subCategoryData,
-        updatedAt: serverTimestamp()
+        ...subCategoryData
       });
       
       // Return updated subcategory data
@@ -389,7 +471,7 @@ export const brandService = {
   // Get all brands
   async getAll() {
     try {
-      const q = query(collection(db, 'brands'), orderBy('createdAt', 'desc'));
+      const q = query(collection(db, 'brands'));
       const querySnapshot = await getDocs(q);
       return querySnapshot.docs.map(doc => ({
         id: doc.id,
@@ -406,17 +488,13 @@ export const brandService = {
     try {
       const docRef = await addDoc(collection(db, 'brands'), {
         name: brandData.name,
-        subCategory: brandData.subCategory,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+        subCategory: brandData.subCategory
       });
 
       return {
         id: docRef.id,
         name: brandData.name,
-        subCategory: brandData.subCategory,
-        createdAt: new Date(),
-        updatedAt: new Date()
+        subCategory: brandData.subCategory
       };
     } catch (error) {
       console.error('Error adding brand:', error);
@@ -440,8 +518,7 @@ export const brandService = {
   async update(brandId, brandData) {
     try {
       await updateDoc(doc(db, 'brands', brandId), {
-        ...brandData,
-        updatedAt: serverTimestamp()
+        ...brandData
       });
       
       // Return updated brand data
@@ -462,7 +539,7 @@ export const posterService = {
   async getAll() {
     try {
       console.log('Fetching data from Posters collection...');
-      const q = query(collection(db, 'posters'), orderBy('createdAt', 'desc'));
+      const q = query(collection(db, 'posters'));
       const querySnapshot = await getDocs(q);
       const posters = querySnapshot.docs.map(doc => ({
         id: doc.id,
@@ -488,23 +565,36 @@ export const posterService = {
         imageUrl = await getDownloadURL(snapshot.ref);
       }
 
+      // Generate automatic banner ID
+      const generateBannerId = () => {
+        const timestamp = Date.now().toString(36);
+        const randomStr = Math.random().toString(36).substring(2, 8);
+        return `BNR_${timestamp}_${randomStr}`.toUpperCase();
+      };
+
+      const autoBannerId = generateBannerId();
+
       const docRef = await addDoc(collection(db, 'posters'), {
-        title: posterData.title,
+        title: posterData.title || posterData.bannerName || '',
         description: posterData.description || '',
         status: posterData.status || 'active',
         image: imageUrl,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+        bannerId: autoBannerId,
+        bannerName: posterData.bannerName || null,
+        productId: posterData.productId || null,
+        price: posterData.price || null
       });
 
       return {
         id: docRef.id,
-        title: posterData.title,
+        title: posterData.title || posterData.bannerName || '',
         description: posterData.description || '',
         status: posterData.status || 'active',
         image: imageUrl,
-        createdAt: new Date(),
-        updatedAt: new Date()
+        bannerId: autoBannerId,
+        bannerName: posterData.bannerName || null,
+        productId: posterData.productId || null,
+        price: posterData.price || null
       };
     } catch (error) {
       console.error('Error adding poster:', error);
@@ -538,15 +628,13 @@ export const posterService = {
       }
       
       await updateDoc(doc(db, 'posters', posterId), {
-        ...updateData,
-        updatedAt: serverTimestamp()
+        ...updateData
       });
       
       // Return updated poster data
       return {
         id: posterId,
-        ...updateData,
-        updatedAt: new Date()
+        ...updateData
       };
     } catch (error) {
       console.error('Error updating poster:', error);

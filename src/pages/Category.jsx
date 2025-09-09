@@ -64,8 +64,10 @@ const Category = () => {
         
         if (selectedCategory) {
           // Update existing category
+          console.log('Selected category object:', selectedCategory);
           console.log('Updating category with ID:', selectedCategory.id);
           console.log('Form data:', formData);
+          console.log('Image file:', imageFile);
           const updatedCategory = await categoryService.update(selectedCategory.id, formData, imageFile);
           console.log('Updated category received:', updatedCategory);
           setCategories(prev => prev.map(cat => 

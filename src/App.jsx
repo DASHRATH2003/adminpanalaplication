@@ -5,6 +5,7 @@ import Header from './components/Header';
 import Dashboard from './pages/Dashboard';
 import Category from './pages/Category';
 import SubCategory from './pages/SubCategory';
+import SubUnderCategory from './pages/SubUnderCategory';
 import Brands from './pages/Brands';
 import VariantType from './pages/VariantType';
 import Variants from './pages/Variants';
@@ -44,6 +45,7 @@ const App = () => {
                   <Route path="/" element={<Dashboard />} />
                   <Route path="/category" element={<Category />} />
                   <Route path="/sub-category" element={<SubCategory />} />
+                  <Route path="/sub-under-category" element={<SubUnderCategory />} />
                   <Route path="/brands" element={<Brands />} />
                   <Route path="/variant-type" element={<VariantType />} />
                   <Route path="/variants" element={<Variants />} />

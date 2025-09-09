@@ -1,10 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, RefreshCw, X, Camera, Edit, Trash2 } from 'lucide-react';
-import { posterService } from '../firebase/services';
+import { Plus, RefreshCw, X, Camera, Edit, Trash2, Search } from 'lucide-react';
+import { posterService, productService } from '../firebase/services';
 
 const Posters = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isProductSelectModalOpen, setIsProductSelectModalOpen] = useState(false);
+  const [isProductFormModalOpen, setIsProductFormModalOpen] = useState(false);
   const [posters, setPosters] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [filteredProducts, setFilteredProducts] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState({
     title: '',
@@ -12,14 +17,40 @@ const Posters = () => {
     status: 'active',
     image: null
   });
+  const [productFormData, setProductFormData] = useState({
+    bannerId: '',
+    bannerName: '',
+    productId: '',
+    price: '',
+    offerPrice: '',
+    image: null
+  });
   const [imagePreview, setImagePreview] = useState(null);
   const [imageFile, setImageFile] = useState(null);
+  const [productImagePreview, setProductImagePreview] = useState(null);
+  const [productImageFile, setProductImageFile] = useState(null);
   const [selectedPoster, setSelectedPoster] = useState(null);
+  const [selectedProduct, setSelectedProduct] = useState(null);
 
-  // Fetch posters from Firebase on component mount
+  // Fetch posters and products from Firebase on component mount
   useEffect(() => {
     fetchPosters();
+    fetchProducts();
   }, []);
+
+  // Filter products based on search term
+  useEffect(() => {
+    if (searchTerm.trim() === '') {
+      setFilteredProducts(products);
+    } else {
+      const filtered = products.filter(product =>
+        product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        product.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        product.brand.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+      setFilteredProducts(filtered);
+    }
+  }, [searchTerm, products]);
 
   const fetchPosters = async () => {
     try {
@@ -31,6 +62,17 @@ const Posters = () => {
       alert('Error fetching posters. Please try again.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchProducts = async () => {
+    try {
+      const productsData = await productService.getAll();
+      setProducts(productsData);
+      setFilteredProducts(productsData);
+    } catch (error) {
+      console.error('Error fetching products:', error);
+      alert('Error fetching products. Please try again.');
     }
   };
 
@@ -97,6 +139,127 @@ const Posters = () => {
     setIsModalOpen(false);
   };
 
+  const handleProductSelect = (product) => {
+    setSelectedProduct(product);
+    setProductFormData({
+      bannerId: '',
+      bannerName: '',
+      productId: product.id,
+      price: product.price.toString(),
+      offerPrice: product.offerPrice ? product.offerPrice.toString() : '',
+      image: null
+    });
+    setProductImagePreview(null);
+    setProductImageFile(null);
+    setIsProductSelectModalOpen(false);
+    setIsProductFormModalOpen(true);
+  };
+
+  const handleProductFormChange = (e) => {
+    const { name, value } = e.target;
+    setProductFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleProductImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setProductImageFile(file);
+      const reader = new FileReader();
+      reader.onload = (e) => setProductImagePreview(e.target.result);
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleProductFormSubmit = async (e) => {
+    e.preventDefault();
+    if (productFormData.bannerName.trim() && productFormData.productId.trim() && productFormData.price.trim()) {
+      try {
+        setLoading(true);
+        
+        // Create banner data
+        const bannerData = {
+          bannerName: productFormData.bannerName,
+          productId: productFormData.productId,
+          price: productFormData.price,
+          offerPrice: productFormData.offerPrice || '',
+          status: 'active'
+        };
+        
+        const newBanner = await posterService.add(bannerData, productImageFile);
+        setPosters(prev => [newBanner, ...prev]);
+        
+        // Update original product if price or offer price changed
+        if (selectedProduct) {
+          const originalPrice = selectedProduct.price.toString();
+          const originalOfferPrice = selectedProduct.offerPrice ? selectedProduct.offerPrice.toString() : '';
+          
+          if (productFormData.price !== originalPrice || productFormData.offerPrice !== originalOfferPrice) {
+            try {
+              const updatedProductData = {
+                ...selectedProduct,
+                price: parseFloat(productFormData.price),
+                offerPrice: productFormData.offerPrice ? parseFloat(productFormData.offerPrice) : 0
+              };
+              
+              await productService.update(selectedProduct.id, updatedProductData);
+              
+              // Update local products state
+              setProducts(prev => prev.map(product => 
+                product.id === selectedProduct.id 
+                  ? { ...product, price: parseFloat(productFormData.price), offerPrice: productFormData.offerPrice ? parseFloat(productFormData.offerPrice) : 0 }
+                  : product
+              ));
+              
+              console.log('Product price updated successfully');
+            } catch (error) {
+              console.error('Error updating product price:', error);
+              // Don't show error to user as banner was created successfully
+            }
+          }
+        }
+        
+        // Reset form
+        setProductFormData({
+          bannerId: '',
+          bannerName: '',
+          productId: '',
+          price: '',
+          offerPrice: '',
+          image: null
+        });
+        setProductImagePreview(null);
+        setProductImageFile(null);
+        setSelectedProduct(null);
+        setIsProductFormModalOpen(false);
+        
+        alert('Banner created successfully!');
+      } catch (error) {
+        console.error('Error creating banner:', error);
+        alert('Error creating banner. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  const handleProductFormCancel = () => {
+    setProductFormData({
+      bannerId: '',
+      bannerName: '',
+      productId: '',
+      price: '',
+      offerPrice: '',
+      image: null
+    });
+    setProductImagePreview(null);
+    setProductImageFile(null);
+    setSelectedProduct(null);
+    setIsProductFormModalOpen(false);
+  };
+
   const handleEdit = (poster) => {
     setSelectedPoster(poster);
     setFormData({
@@ -151,11 +314,11 @@ const Posters = () => {
         <h2 className="text-2xl font-semibold text-white">Posters</h2>
         <div className="flex items-center space-x-3">
           <button 
-            onClick={() => setIsModalOpen(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
+            onClick={() => setIsProductSelectModalOpen(true)}
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
           >
             <Plus size={20} />
-            <span>Add Poster</span>
+            <span>Add Banner</span>
           </button>
           <button 
             onClick={fetchPosters}
@@ -328,36 +491,7 @@ const Posters = () => {
                   />
                 </div>
 
-                {/* Description */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Description
-                  </label>
-                  <textarea
-                    name="description"
-                    value={formData.description}
-                    onChange={handleInputChange}
-                    rows={3}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter poster description"
-                  />
-                </div>
 
-                {/* Status */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Status
-                  </label>
-                  <select
-                    name="status"
-                    value={formData.status}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                  </select>
-                </div>
 
                 {/* Form Actions */}
                 <div className="flex space-x-3 pt-4">
@@ -374,6 +508,247 @@ const Posters = () => {
                     className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
                   >
                     {loading ? 'Saving...' : (selectedPoster ? 'Update Poster' : 'Add Poster')}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Product Selection Modal */}
+      {isProductSelectModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-800 rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-white">
+                  Select Product for Poster
+                </h3>
+                <button
+                  onClick={() => setIsProductSelectModalOpen(false)}
+                  className="text-gray-400 hover:text-white transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Search Box */}
+              <div className="mb-4">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                  <input
+                    type="text"
+                    placeholder="Search products by name, category, or brand..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* Products Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-96 overflow-y-auto">
+                {filteredProducts.length === 0 ? (
+                  <div className="col-span-full text-center text-gray-400 py-8">
+                    {searchTerm ? 'No products found matching your search.' : 'No products available.'}
+                  </div>
+                ) : (
+                  filteredProducts.map((product) => (
+                    <div
+                      key={product.id}
+                      onClick={() => handleProductSelect(product)}
+                      className="bg-gray-700 p-4 rounded-lg border border-gray-600 hover:border-blue-500 cursor-pointer transition-colors"
+                    >
+                      <div className="flex items-center space-x-3">
+                        {product.image || product.images?.[0] ? (
+                          <img
+                            src={product.image || product.images?.[0]}
+                            alt={product.name}
+                            className="w-16 h-16 object-cover rounded-lg flex-shrink-0"
+                          />
+                        ) : (
+                          <div className="w-16 h-16 bg-gray-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                            <Camera size={20} className="text-gray-400" />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-white font-medium text-sm truncate">{product.name}</h4>
+                          <p className="text-gray-400 text-xs">{product.category}</p>
+                          <div className="flex items-center space-x-2 mt-1">
+                            <span className="text-green-400 font-medium text-sm">₹{product.price}</span>
+                            {product.offerPrice && (
+                              <span className="text-orange-400 text-xs">₹{product.offerPrice}</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="flex justify-end mt-6">
+                <button
+                  onClick={() => setIsProductSelectModalOpen(false)}
+                  className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Product Form Modal */}
+      {isProductFormModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-800 rounded-lg w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-white">
+                  Create Banner
+                </h3>
+                <button
+                  onClick={handleProductFormCancel}
+                  className="text-gray-400 hover:text-white transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form onSubmit={handleProductFormSubmit} className="space-y-4">
+                {/* Banner Image */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Banner Image
+                  </label>
+                  <div className="flex items-center justify-center w-full">
+                    {productImagePreview ? (
+                      <div className="relative">
+                        <img
+                          src={productImagePreview}
+                          alt="Banner preview"
+                          className="w-32 h-32 object-cover rounded-lg"
+                        />
+                        <label
+                          htmlFor="productImageUpload"
+                          className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center rounded-lg cursor-pointer opacity-0 hover:opacity-100 transition-opacity"
+                        >
+                          <Camera className="w-6 h-6 text-white" />
+                        </label>
+                        <input
+                          id="productImageUpload"
+                          type="file"
+                          accept="image/*"
+                          onChange={handleProductImageChange}
+                          className="hidden"
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-full">
+                        <input
+                          id="productImageUpload"
+                          type="file"
+                          accept="image/*"
+                          onChange={handleProductImageChange}
+                          className="hidden"
+                        />
+                        <label
+                          htmlFor="productImageUpload"
+                          className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-600 border-dashed rounded-lg cursor-pointer bg-gray-700 hover:bg-gray-600"
+                        >
+                          <Camera className="w-8 h-8 mb-2 text-gray-400" />
+                          <p className="text-sm text-gray-400">Choose Banner Image</p>
+                        </label>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Banner ID - Hidden (Auto Generated) */}
+
+                {/* Banner Name */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Banner Name *
+                  </label>
+                  <input
+                    type="text"
+                    name="bannerName"
+                    value={productFormData.bannerName || ''}
+                    onChange={handleProductFormChange}
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter banner name"
+                    required
+                  />
+                </div>
+
+                {/* Product ID */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Product ID *
+                  </label>
+                  <input
+                    type="text"
+                    name="productId"
+                    value={productFormData.productId}
+                    onChange={handleProductFormChange}
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Product ID"
+                    readOnly
+                  />
+                </div>
+
+                {/* Price */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Price *
+                  </label>
+                  <input
+                    type="number"
+                    name="price"
+                    value={productFormData.price}
+                    onChange={handleProductFormChange}
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter price"
+                    required
+                  />
+                </div>
+
+                {/* Offer Price */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Offer Price
+                  </label>
+                  <input
+                    type="number"
+                    name="offerPrice"
+                    value={productFormData.offerPrice}
+                    onChange={handleProductFormChange}
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter offer price (optional)"
+                  />
+                </div>
+
+
+
+                {/* Form Actions */}
+                <div className="flex space-x-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={handleProductFormCancel}
+                    className="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 text-white rounded-lg transition-colors"
+                  >
+                    {loading ? 'Creating...' : 'Create Banner'}
                   </button>
                 </div>
               </form>
