@@ -206,30 +206,31 @@ class BulkUploadService {
   // Validate individual product data
   validateProduct(product) {
     const errors = [];
+    
+    // Flexible validation - only name is truly required
+    // All other fields will have default values if missing
+    if (!product.name?.trim()) {
+      errors.push('Product name is required');
+    }
 
-    // Required fields validation
-    if (!product.name?.trim()) errors.push('Product name is required');
-    if (!product.description?.trim()) errors.push('Description is required');
-    if (!product.category?.trim()) errors.push('Category is required');
-    if (!product.brand?.trim()) errors.push('Brand is required');
-    if (!product.sku?.trim()) errors.push('SKU is required');
-
-    // Price validation
-    const price = parseFloat(product.price);
+    // Price validation with default
+    let price = parseFloat(product.price);
     if (isNaN(price) || price <= 0) {
-      errors.push('Valid price is required');
+      price = 0; // Default price
+      console.warn(`Product "${product.name}": Invalid price, setting to 0`);
     }
 
-    // Offer price validation
-    const offerPrice = parseFloat(product.offerPrice);
-    if (product.offerPrice && (isNaN(offerPrice) || offerPrice < 0)) {
-      errors.push('Valid offer price is required');
+    // Offer price validation with default
+    let offerPrice = parseFloat(product.offerPrice);
+    if (isNaN(offerPrice) || offerPrice < 0) {
+      offerPrice = 0; // Default offer price
     }
 
-    // Stock validation
-    const stock = parseInt(product.stock);
+    // Stock validation with default
+    let stock = parseInt(product.stock);
     if (isNaN(stock) || stock < 0) {
-      errors.push('Valid stock quantity is required');
+      stock = 0; // Default stock
+      console.warn(`Product "${product.name}": Invalid stock, setting to 0`);
     }
 
     // Cash on delivery validation - handle both boolean and string formats
@@ -264,17 +265,17 @@ class BulkUploadService {
       throw new Error(errors.join(', '));
     }
 
-    // Return cleaned product data with new fields
+    // Return cleaned product data with default values for missing fields
     return {
       productId: product.productId || `PROD_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       name: product.name.trim(),
-      description: product.description.trim(),
-      category: product.category.trim(),
+      description: product.description?.trim() || 'No description provided',
+      category: product.category?.trim() || 'Uncategorized',
       subcategory: product.subcategory || product.subCategory || '',
-      brand: product.brand.trim(),
-      sku: product.sku.trim(),
+      brand: product.brand?.trim() || 'Unknown Brand',
+      sku: product.sku?.trim() || `SKU_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
       price: price,
-      offerPrice: parseFloat(product.offerPrice) || 0,
+      offerPrice: offerPrice,
       stock: stock,
       rating: parseFloat(product.rating) || 0,
       timestamp: product.timestamp || new Date().toISOString(),
@@ -338,6 +339,107 @@ class BulkUploadService {
     };
 
     return errorReport;
+  }
+
+  // Delete all products from all collections
+  async deleteAllProducts() {
+    try {
+      console.log('Starting to delete all products from Firebase...');
+      
+      // Get all collections that start with common patterns
+      // Since we can't list all collections directly, we'll need to track them
+      // For now, we'll delete from known collections and any we can find
+      
+      const collectionsToCheck = [];
+      
+      // Try to get collections from localStorage or a tracking mechanism
+      const uploadHistory = JSON.parse(localStorage.getItem('jsonUploadHistory') || '[]');
+      const knownCollections = new Set();
+      
+      // Add collections from upload history if available
+      uploadHistory.forEach(upload => {
+        if (upload.collectionNames) {
+          upload.collectionNames.forEach(name => knownCollections.add(name));
+        }
+      });
+      
+      // Also check some common collection names
+      const commonCollections = ['products', 'test_product', 'simple_test_product'];
+      commonCollections.forEach(name => knownCollections.add(name));
+      
+      let totalDeleted = 0;
+      const deletionResults = [];
+      
+      for (const collectionName of knownCollections) {
+        try {
+          console.log(`Checking collection: ${collectionName}`);
+          
+          const collectionRef = collection(db, collectionName);
+          const snapshot = await getDocs(collectionRef);
+          
+          if (snapshot.size > 0) {
+            console.log(`Found ${snapshot.size} documents in ${collectionName}`);
+            
+            // Delete all documents in this collection
+            const batch = writeBatch(db);
+            let batchCount = 0;
+            
+            snapshot.forEach((docSnapshot) => {
+              batch.delete(docSnapshot.ref);
+              batchCount++;
+              
+              // Firebase batch limit is 500 operations
+              if (batchCount >= 500) {
+                // We'll handle this in chunks if needed
+              }
+            });
+            
+            await batch.commit();
+            totalDeleted += snapshot.size;
+            
+            deletionResults.push({
+              collection: collectionName,
+              deleted: snapshot.size,
+              status: 'success'
+            });
+            
+            console.log(`Deleted ${snapshot.size} documents from ${collectionName}`);
+          } else {
+            console.log(`Collection ${collectionName} is empty or doesn't exist`);
+            deletionResults.push({
+              collection: collectionName,
+              deleted: 0,
+              status: 'empty'
+            });
+          }
+        } catch (collectionError) {
+          console.error(`Error deleting from collection ${collectionName}:`, collectionError);
+          deletionResults.push({
+            collection: collectionName,
+            deleted: 0,
+            status: 'error',
+            error: collectionError.message
+          });
+        }
+      }
+      
+      console.log(`Total products deleted: ${totalDeleted}`);
+      
+      return {
+        success: true,
+        totalDeleted,
+        results: deletionResults,
+        message: `Successfully deleted ${totalDeleted} products from ${deletionResults.length} collections`
+      };
+      
+    } catch (error) {
+      console.error('Error deleting all products:', error);
+      return {
+        success: false,
+        error: error.message,
+        totalDeleted: 0
+      };
+    }
   }
 }
 

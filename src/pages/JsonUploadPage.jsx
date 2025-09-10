@@ -6,6 +6,7 @@ import bulkUploadService from '../firebase/bulkUploadService';
 const JsonUploadPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [uploadHistory, setUploadHistory] = useState([]);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [stats, setStats] = useState({
     totalUploads: 0,
     successfulUploads: 0,
@@ -124,6 +125,43 @@ const JsonUploadPage = () => {
     });
   };
 
+  const handleDeleteAllProducts = async () => {
+    if (!window.confirm('Are you sure you want to delete ALL products from Firebase? This action cannot be undone!')) {
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      console.log('Starting to delete all products...');
+      const result = await bulkUploadService.deleteAllProducts();
+      
+      if (result.success) {
+        alert(`Successfully deleted ${result.totalDeleted} products from Firebase!`);
+        console.log('Delete result:', result);
+        
+        // Reset stats since all products are deleted
+        setStats({
+          totalUploads: 0,
+          successfulUploads: 0,
+          failedUploads: 0,
+          lastUpload: null
+        });
+        
+        // Clear upload history
+        setUploadHistory([]);
+        localStorage.removeItem('jsonUploadHistory');
+      } else {
+        alert(`Failed to delete products: ${result.error}`);
+        console.error('Delete failed:', result);
+      }
+    } catch (error) {
+      console.error('Error deleting products:', error);
+      alert(`Error deleting products: ${error.message}`);
+    } finally {
+       setIsDeleting(false);
+     }
+   };
+
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6">
       <div className="max-w-7xl mx-auto">
@@ -178,14 +216,23 @@ const JsonUploadPage = () => {
           </div>
         </div>
 
-        {/* Upload Button */}
-        <div className="mb-8">
+        {/* Upload and Delete Buttons */}
+        <div className="mb-8 flex gap-4">
           <button
             onClick={() => setIsModalOpen(true)}
             className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition-colors font-medium"
           >
             <Upload className="w-5 h-5" />
             Upload New JSON File
+          </button>
+          
+          <button
+            onClick={handleDeleteAllProducts}
+            disabled={isDeleting}
+            className="bg-red-600 hover:bg-red-700 disabled:bg-red-400 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg flex items-center gap-2 transition-colors font-medium"
+          >
+            <Trash2 className="w-5 h-5" />
+            {isDeleting ? 'Deleting...' : 'Delete All Products'}
           </button>
         </div>
 
@@ -212,12 +259,7 @@ const JsonUploadPage = () => {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                         Total Products
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                        Success
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                        Errors
-                      </th>
+
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                         File Name
                       </th>
@@ -249,12 +291,7 @@ const JsonUploadPage = () => {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                           {upload.totalProducts}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-green-400">
-                          {upload.successCount}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-red-400">
-                          {upload.errorCount}
-                        </td>
+
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                           {upload.fileName}
                         </td>
@@ -305,19 +342,12 @@ const JsonUploadPage = () => {
                       </div>
                     </div>
                     
-                    <div className="grid grid-cols-3 gap-4 text-sm">
+                    <div className="grid grid-cols-1 gap-4 text-sm">
                       <div>
                         <div className="text-gray-400">Total</div>
                         <div className="text-white font-medium">{upload.totalProducts}</div>
                       </div>
-                      <div>
-                        <div className="text-gray-400">Success</div>
-                        <div className="text-green-400 font-medium">{upload.successCount}</div>
-                      </div>
-                      <div>
-                        <div className="text-gray-400">Errors</div>
-                        <div className="text-red-400 font-medium">{upload.errorCount}</div>
-                      </div>
+
                     </div>
                   </div>
                 ))}

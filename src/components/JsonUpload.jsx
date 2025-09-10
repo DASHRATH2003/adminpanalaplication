@@ -296,10 +296,10 @@ const JsonUpload = ({ isOpen, onClose, onUpload }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-700">
+        <div className="flex items-center justify-between p-6 border-b border-gray-700 flex-shrink-0">
           <div>
             <h2 className="text-2xl font-bold text-white">JSON Bulk Upload</h2>
             <p className="text-sm text-gray-400 mt-1">Upload multiple products using JSON file</p>
@@ -313,18 +313,31 @@ const JsonUpload = ({ isOpen, onClose, onUpload }) => {
           </button>
         </div>
 
-        <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
+        <div className="p-6 overflow-y-auto flex-1 min-h-0">
           {/* Template Download */}
           <div className="mb-6">
+            <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-4 mb-4">
+              <div className="flex items-center gap-2 mb-2">
+                <CheckCircle className="w-5 h-5 text-green-400" />
+                <span className="text-green-400 font-medium">Flexible JSON Upload Enabled!</span>
+              </div>
+              <p className="text-sm text-green-300">
+                 You can now upload JSON files in any format. Missing fields will be automatically filled with default values.
+               </p>
+               <p className="text-xs text-green-400 mt-1">
+                 Only "name" field is required - all other fields are optional!
+               </p>
+            </div>
+            
             <button
               onClick={downloadTemplate}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
               <Download className="w-4 h-4" />
-              Download JSON Template
+              Download JSON Template (Optional)
             </button>
             <p className="text-sm text-gray-400 mt-2">
-              First download the JSON template and fill your product data<br/>
+              Template download is optional - you can use any JSON format<br/>
               <span className="text-yellow-400">⚠️ 5MB file size limit (unlimited products)</span>
             </p>
           </div>
@@ -519,7 +532,7 @@ const JsonUpload = ({ isOpen, onClose, onUpload }) => {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-700 bg-gray-900">
+        <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-700 bg-gray-900 flex-shrink-0">
           <button
             onClick={handleClose}
             disabled={uploadStatus === 'processing'}
