@@ -13,6 +13,7 @@ import {
   MessageCircle,
   Users,
   UserCheck,
+  Upload,
   X
 } from 'lucide-react';
 
@@ -29,6 +30,7 @@ const Sidebar = ({ isOpen, onClose }) => {
     { path: '/messages', icon: MessageCircle, label: 'Messages' },
     { path: '/coupons', icon: Ticket, label: 'Coupons' },
     { path: '/posters', icon: Image, label: 'Posters' },
+    { path: '/json-upload', icon: Upload, label: 'JSON Upload' },
     { path: '/profile', icon: User, label: 'Profile' },
 
   ];

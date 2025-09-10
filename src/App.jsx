@@ -17,6 +17,7 @@ import Coupons from './pages/Coupons';
 import Posters from './pages/Posters';
 import Notifications from './pages/Notifications';
 import Profile from './pages/Profile';
+import JsonUploadPage from './pages/JsonUploadPage';
 
 import Login from './pages/Login';
 
@@ -58,6 +59,7 @@ const App = () => {
                   <Route path="/messages" element={<Messages />} />
                   <Route path="/coupons" element={<Coupons />} />
                   <Route path="/posters" element={<Posters />} />
+                  <Route path="/json-upload" element={<JsonUploadPage />} />
                   <Route path="/notifications" element={<Notifications />} />
                   <Route path="/profile" element={<Profile />} />
                 </Routes>

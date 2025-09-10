@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
-import { Users, Mail, Phone, MapPin, Calendar, ShoppingBag } from 'lucide-react';
+import { Users, Mail, Phone, MapPin, Calendar, ShoppingBag, X } from 'lucide-react';
 
 const Customers = () => {
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [showModal, setShowModal] = useState(false);
+  const [showMessageModal, setShowMessageModal] = useState(false);
+  const [messageText, setMessageText] = useState('');
 
   useEffect(() => {
     fetchCustomers();
@@ -25,6 +29,48 @@ const Customers = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleBlockCustomer = async (customerId) => {
+    try {
+      const customerRef = doc(db, 'customers', customerId);
+      await updateDoc(customerRef, {
+        status: 'blocked'
+      });
+      
+      setCustomers(customers.map(customer => 
+        customer.id === customerId 
+          ? { ...customer, status: 'blocked' }
+          : customer
+      ));
+      
+      alert('Customer blocked successfully!');
+    } catch (error) {
+      console.error('Error blocking customer:', error);
+      alert('Error blocking customer');
+    }
+  };
+
+  const handleViewCustomer = (customer) => {
+    setSelectedCustomer(customer);
+    setShowModal(true);
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setSelectedCustomer(null);
+  };
+
+  const handleMessageCustomer = (customer) => {
+    setSelectedCustomer(customer);
+    setMessageText(`Message to ${customer.name || customer.email}`);
+    setShowMessageModal(true);
+  };
+
+  const closeMessageModal = () => {
+    setShowMessageModal(false);
+    setSelectedCustomer(null);
+    setMessageText('');
   };
 
   if (loading) {
@@ -150,13 +196,22 @@ const Customers = () => {
                       </div>
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
-                      <button className="text-blue-400 hover:text-blue-300 mr-3">
+                      <button 
+                        onClick={() => handleViewCustomer(customer)}
+                        className="text-blue-400 hover:text-blue-300 mr-3"
+                      >
                         View
                       </button>
-                      <button className="text-green-400 hover:text-green-300 mr-3">
+                      <button 
+                        onClick={() => handleMessageCustomer(customer)}
+                        className="text-green-400 hover:text-green-300 mr-3"
+                      >
                         Message
                       </button>
-                      <button className="text-red-400 hover:text-red-300">
+                      <button 
+                        onClick={() => handleBlockCustomer(customer.id)}
+                        className="text-red-400 hover:text-red-300"
+                      >
                         Block
                       </button>
                     </td>
@@ -239,13 +294,22 @@ const Customers = () => {
 
               {/* Actions */}
               <div className="flex flex-wrap gap-2 pt-3 border-t border-gray-700">
-                <button className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-sm font-medium transition-colors">
+                <button 
+                  onClick={() => handleViewCustomer(customer)}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-sm font-medium transition-colors"
+                >
                   View
                 </button>
-                <button className="flex-1 bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded text-sm font-medium transition-colors">
+                <button 
+                  onClick={() => handleMessageCustomer(customer)}
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded text-sm font-medium transition-colors"
+                >
                   Message
                 </button>
-                <button className="flex-1 bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded text-sm font-medium transition-colors">
+                <button 
+                  onClick={() => handleBlockCustomer(customer.id)}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded text-sm font-medium transition-colors"
+                >
                   Block
                 </button>
               </div>
@@ -253,6 +317,138 @@ const Customers = () => {
           ))
         )}
       </div>
+
+      {/* View Detail Modal */}
+      {showModal && selectedCustomer && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-gray-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center p-6 border-b border-gray-700">
+              <h2 className="text-xl font-bold text-white">Customer Details</h2>
+              <button
+                onClick={closeModal}
+                className="text-gray-400 hover:text-white transition-colors p-2 hover:bg-gray-700 rounded-full"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Name</label>
+                    <p className="text-white bg-gray-700 p-3 rounded">{selectedCustomer.name || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Email</label>
+                    <p className="text-white bg-gray-700 p-3 rounded break-all">{selectedCustomer.email || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Phone</label>
+                    <p className="text-white bg-gray-700 p-3 rounded">{selectedCustomer.phone || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Status</label>
+                    <p className="text-white bg-gray-700 p-3 rounded">{selectedCustomer.status || 'Active'}</p>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Address</label>
+                    <p className="text-white bg-gray-700 p-3 rounded">{selectedCustomer.address || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Total Orders</label>
+                    <p className="text-white bg-gray-700 p-3 rounded">{selectedCustomer.totalOrders || 0}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Joined Date</label>
+                    <p className="text-white bg-gray-700 p-3 rounded">
+                      {selectedCustomer.createdAt ? new Date(selectedCustomer.createdAt.toDate()).toLocaleDateString() : 'N/A'}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Customer ID</label>
+                    <p className="text-white bg-gray-700 p-3 rounded font-mono text-sm">{selectedCustomer.id}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-6 flex justify-end space-x-3">
+                <button
+                  onClick={() => handleMessageCustomer(selectedCustomer)}
+                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded transition-colors"
+                >
+                  Send Message
+                </button>
+                <button
+                  onClick={() => {
+                    handleBlockCustomer(selectedCustomer.id);
+                    closeModal();
+                  }}
+                  className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded transition-colors"
+                >
+                  Block Customer
+                </button>
+                <button
+                  onClick={closeModal}
+                  className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Message Modal */}
+      {showMessageModal && selectedCustomer && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-gray-800 rounded-lg max-w-md w-full">
+            <div className="flex justify-between items-center p-6 border-b border-gray-700">
+              <h2 className="text-xl font-bold text-white">Send Message</h2>
+              <button
+                onClick={closeMessageModal}
+                className="text-gray-400 hover:text-white transition-colors p-2 hover:bg-gray-700 rounded-full"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-6">
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-300 mb-2">Customer</label>
+                <p className="text-white bg-gray-700 p-3 rounded">{selectedCustomer.name || selectedCustomer.email}</p>
+              </div>
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-300 mb-2">Message</label>
+                <textarea
+                  value={messageText}
+                  onChange={(e) => setMessageText(e.target.value)}
+                  className="w-full bg-gray-700 text-white p-3 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+                  rows="4"
+                  placeholder="Type your message here..."
+                />
+              </div>
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={closeMessageModal}
+                  className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    alert(`Message sent to ${selectedCustomer.name || selectedCustomer.email}: ${messageText}`);
+                    closeMessageModal();
+                  }}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded transition-colors"
+                >
+                  Send Message
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
