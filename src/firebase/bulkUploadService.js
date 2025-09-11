@@ -251,14 +251,45 @@ class BulkUploadService {
       images = [product.image];
     }
 
-    // Variants validation
+    // Variants validation (handle both variants and sizeVariants)
     let variants = [];
-    if (product.variants && Array.isArray(product.variants)) {
-      variants = product.variants.filter(variant => 
-        variant.sku && variant.size && 
-        !isNaN(parseFloat(variant.price)) && 
-        !isNaN(parseInt(variant.stock))
-      );
+    const variantsToProcess = product.variants || product.sizeVariants;
+    if (variantsToProcess && Array.isArray(variantsToProcess)) {
+      variants = variantsToProcess
+        .filter(variant => variant && typeof variant === 'object')
+        .map(variant => ({
+          sku: variant.sku || '',
+          size: variant.size || '',
+          price: parseFloat(variant.price) || 0,
+          stock: parseInt(variant.stock) || 0,
+          color: variant.color || '',
+          material: variant.material || ''
+        }))
+        .filter(variant => 
+          variant.sku && variant.size && 
+          variant.price >= 0 && 
+          variant.stock >= 0
+        );
+    }
+    
+    // Also handle sizeVariants separately for backward compatibility
+    let sizeVariants = [];
+    if (product.sizeVariants && Array.isArray(product.sizeVariants)) {
+      sizeVariants = product.sizeVariants
+        .filter(variant => variant && typeof variant === 'object')
+        .map(variant => ({
+          sku: variant.sku || '',
+          size: variant.size || '',
+          price: parseFloat(variant.price) || 0,
+          stock: parseInt(variant.stock) || 0,
+          color: variant.color || '',
+          material: variant.material || ''
+        }))
+        .filter(variant => 
+          variant.sku && variant.size && 
+          variant.price >= 0 && 
+          variant.stock >= 0
+        );
     }
 
     if (errors.length > 0) {
@@ -282,6 +313,7 @@ class BulkUploadService {
       cashOnDelivery: cashOnDelivery,
       images: images,
       variants: variants,
+      sizeVariants: sizeVariants.length > 0 ? sizeVariants : variants,
       attributes: product.attributes || '',
       date: product.date || new Date().toISOString().split('T')[0]
     };

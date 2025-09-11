@@ -138,12 +138,13 @@ const JsonUpload = ({ isOpen, onClose, onUpload }) => {
         rowErrors.push(`Row ${rowNumber}: Images must be an array`);
       }
       
-      // Validate variants array if present
-      if (item.variants) {
-        if (!Array.isArray(item.variants)) {
+      // Validate variants array if present (both variants and sizeVariants)
+      const variantsToCheck = item.variants || item.sizeVariants;
+      if (variantsToCheck) {
+        if (!Array.isArray(variantsToCheck)) {
           rowErrors.push(`Row ${rowNumber}: Variants must be an array`);
-        } else if (item.variants.length > 0) {
-          item.variants.forEach((variant, vIndex) => {
+        } else if (variantsToCheck.length > 0) {
+          variantsToCheck.forEach((variant, vIndex) => {
             if (!variant.sku) {
               rowErrors.push(`Row ${rowNumber}, Variant ${vIndex + 1}: SKU is required`);
             }
@@ -169,7 +170,7 @@ const JsonUpload = ({ isOpen, onClose, onUpload }) => {
       }
 
       if (rowErrors.length === 0) {
-          validatedData.push({
+          const processedItem = {
             ...item,
             productId: item.productId || `PROD_${Date.now()}_${index}`,
             price: parseFloat(item.price),
@@ -179,10 +180,46 @@ const JsonUpload = ({ isOpen, onClose, onUpload }) => {
             cashOnDelivery: item.cashOnDelivery !== undefined ? item.cashOnDelivery : true,
             timestamp: item.timestamp || new Date().toISOString(),
             images: item.images || (item.image ? [item.image] : []),
-            variants: item.variants || [],
+            variants: Array.isArray(item.variants) ? item.variants.map(v => ({
+              sku: v.sku || '',
+              size: v.size || '',
+              price: parseFloat(v.price) || 0,
+              stock: parseInt(v.stock) || 0,
+              color: v.color || '',
+              material: v.material || ''
+            })) : (Array.isArray(item.sizeVariants) ? item.sizeVariants.map(v => ({
+              sku: v.sku || '',
+              size: v.size || '',
+              price: parseFloat(v.price) || 0,
+              stock: parseInt(v.stock) || 0,
+              color: v.color || '',
+              material: v.material || ''
+            })) : []),
+            sizeVariants: Array.isArray(item.sizeVariants) ? item.sizeVariants.map(v => ({
+              sku: v.sku || '',
+              size: v.size || '',
+              price: parseFloat(v.price) || 0,
+              stock: parseInt(v.stock) || 0,
+              color: v.color || '',
+              material: v.material || ''
+            })) : (Array.isArray(item.variants) ? item.variants.map(v => ({
+              sku: v.sku || '',
+              size: v.size || '',
+              price: parseFloat(v.price) || 0,
+              stock: parseInt(v.stock) || 0,
+              color: v.color || '',
+              material: v.material || ''
+            })) : []),
             subcategory: item.subcategory || item.subCategory || '',
             date: new Date().toISOString().split('T')[0]
-          });
+          };
+          
+          // Debug logging for sizeVariants
+          console.log('Processing item:', item.name);
+          console.log('Original sizeVariants:', item.sizeVariants);
+          console.log('Processed sizeVariants:', processedItem.sizeVariants);
+          
+          validatedData.push(processedItem);
       }
 
       validationErrors.push(...rowErrors);
@@ -202,6 +239,12 @@ const JsonUpload = ({ isOpen, onClose, onUpload }) => {
     setUploadProgress(0);
 
     try {
+      // Debug logging before upload
+      console.log('Uploading data:', jsonData);
+      jsonData.forEach((item, index) => {
+        console.log(`Item ${index + 1} sizeVariants:`, item.sizeVariants);
+      });
+
       // Simulate progress
       const progressInterval = setInterval(() => {
         setUploadProgress(prev => {
@@ -247,7 +290,42 @@ const JsonUpload = ({ isOpen, onClose, onUpload }) => {
         timestamp: "",
         images: [],
         cashOnDelivery: true,
-        variants: []
+        variants: [
+          {
+            sku: "SKU_175759456000_3xtwwv",
+            size: "S",
+            price: 343,
+            stock: 25,
+            color: "Red",
+            material: "Cotton"
+          },
+          {
+            sku: "SKU_175759456001_3xtwwv",
+            size: "M",
+            price: 343,
+            stock: 30,
+            color: "Blue",
+            material: "Cotton"
+          }
+        ],
+        sizeVariants: [
+          {
+            sku: "SKU_175759456000_3xtwwv",
+            size: "S",
+            price: 343,
+            stock: 25,
+            color: "Red",
+            material: "Cotton"
+          },
+          {
+            sku: "SKU_175759456001_3xtwwv",
+            size: "M",
+            price: 343,
+            stock: 30,
+            color: "Blue",
+            material: "Cotton"
+          }
+        ]
       }
     ];
 
@@ -492,23 +570,51 @@ const JsonUpload = ({ isOpen, onClose, onUpload }) => {
                         </div>
                       )}
                       
-                      {item.variants && item.variants.length > 0 && (
+                      {(item.variants && item.variants.length > 0) || (item.sizeVariants && item.sizeVariants.length > 0) ? (
                         <div>
-                          <div className="text-sm text-gray-400 mb-1">Variants ({item.variants.length})</div>
-                          <div className="flex flex-wrap gap-1">
-                            {item.variants.slice(0, 3).map((variant, vIndex) => (
-                              <span key={vIndex} className="px-2 py-1 bg-blue-900 text-blue-300 text-xs rounded">
-                                {variant.size}
-                              </span>
-                            ))}
-                            {item.variants.length > 3 && (
-                              <span className="px-2 py-1 bg-gray-700 text-gray-400 text-xs rounded">
-                                +{item.variants.length - 3} more
-                              </span>
+                          <div className="text-sm text-gray-400 mb-1">
+                            {item.variants && item.variants.length > 0 ? `Variants (${item.variants.length})` : ''}
+                            {item.variants && item.variants.length > 0 && item.sizeVariants && item.sizeVariants.length > 0 ? ' | ' : ''}
+                            {item.sizeVariants && item.sizeVariants.length > 0 ? `Size Variants (${item.sizeVariants.length})` : ''}
+                          </div>
+                          <div className="space-y-2">
+                            {item.variants && item.variants.length > 0 && (
+                              <div>
+                                <div className="text-xs text-gray-500 mb-1">Variants:</div>
+                                <div className="flex flex-wrap gap-1">
+                                  {item.variants.slice(0, 3).map((variant, vIndex) => (
+                                    <span key={vIndex} className="px-2 py-1 bg-blue-900 text-blue-300 text-xs rounded">
+                                      {variant.size} - ₹{variant.price}
+                                    </span>
+                                  ))}
+                                  {item.variants.length > 3 && (
+                                    <span className="px-2 py-1 bg-gray-700 text-gray-400 text-xs rounded">
+                                      +{item.variants.length - 3} more
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                            {item.sizeVariants && item.sizeVariants.length > 0 && (
+                              <div>
+                                <div className="text-xs text-gray-500 mb-1">Size Variants:</div>
+                                <div className="flex flex-wrap gap-1">
+                                  {item.sizeVariants.slice(0, 3).map((variant, vIndex) => (
+                                    <span key={vIndex} className="px-2 py-1 bg-purple-900 text-purple-300 text-xs rounded">
+                                      {variant.size} - ₹{variant.price} (Stock: {variant.stock})
+                                    </span>
+                                  ))}
+                                  {item.sizeVariants.length > 3 && (
+                                    <span className="px-2 py-1 bg-gray-700 text-gray-400 text-xs rounded">
+                                      +{item.sizeVariants.length - 3} more
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
                             )}
                           </div>
                         </div>
-                      )}
+                      ) : null}
                       
                       <div className="grid grid-cols-2 gap-4">
                         <div>
