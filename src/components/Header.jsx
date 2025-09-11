@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Search, ChevronDown, User, LogOut, UserCircle, Menu } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-const Header = ({ onToggleSidebar }) => {
+const Header = ({ onToggleSidebar, setIsAuthenticated }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [userData, setUserData] = useState({ name: 'Support Admin', email: 'support@sadhanacart.com' });
   const navigate = useNavigate();
@@ -23,6 +23,8 @@ const Header = ({ onToggleSidebar }) => {
     // Clear any stored authentication data
     localStorage.removeItem('authToken');
     localStorage.removeItem('userData');
+    // Update authentication state
+    setIsAuthenticated(false);
     // Navigate to login page
     navigate('/login');
   };

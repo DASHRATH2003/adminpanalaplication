@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, User, Lock, ShoppingBag } from 'lucide-react';
 
-const Login = () => {
+const Login = ({ setIsAuthenticated }) => {
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -84,6 +84,9 @@ const Login = () => {
         email: formData.email,
         role: 'admin'
       }));
+      
+      // Update authentication state
+      setIsAuthenticated(true);
       
       // Navigate to dashboard
       navigate('/');
