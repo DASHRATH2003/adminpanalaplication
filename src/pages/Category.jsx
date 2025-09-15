@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, RefreshCw, X, Camera, Edit, Trash2 } from 'lucide-react';
 import { categoryService } from '../firebase/services';
-import ImageWithFallback from '../components/ImageWithFallback';
 
 const Category = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -199,12 +198,7 @@ const Category = () => {
                   <tr key={category.id} className="border-b border-gray-700">
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{category.name}</td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <ImageWithFallback 
-                        src={category.image} 
-                        alt={category.name} 
-                        className="h-10 w-10 rounded-full object-cover" 
-                        fallbackClassName="h-10 w-10 rounded-full"
-                      />
+                      <img src={category.image} alt={category.name} className="h-10 w-10 rounded-full" />
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <button
@@ -244,12 +238,7 @@ const Category = () => {
           categories.map((category) => (
             <div key={category.id} className="bg-gray-800 rounded-lg p-4">
               <div className="flex items-center space-x-4">
-                <ImageWithFallback 
-                  src={category.image} 
-                  alt={category.name} 
-                  className="h-16 w-16 rounded-full object-cover" 
-                  fallbackClassName="h-16 w-16 rounded-full"
-                />
+                <img src={category.image} alt={category.name} className="h-16 w-16 rounded-full object-cover" />
                 <div className="flex-1">
                   <h3 className="text-white font-medium text-lg">{category.name}</h3>
                 </div>
