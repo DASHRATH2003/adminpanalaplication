@@ -127,6 +127,9 @@ const Dashboard = () => {
         console.log('Product subCategoryId:', productsData[0].subCategoryId);
         console.log('Product category field:', productsData[0].category);
         console.log('Product subCategory field:', productsData[0].subCategory);
+        // Debug: Check image data
+        console.log('Product image field:', productsData[0].image);
+        console.log('Product images field:', productsData[0].images);
       }
       
       if (categoriesData.length > 0) {
@@ -758,17 +761,21 @@ const Dashboard = () => {
                     <tr key={product.id} className="border-t border-gray-700">
                       <td className="px-3 md:px-6 py-3 md:py-4">
                         <div className="flex items-center space-x-2 md:space-x-3">
-                          {product.image ? (
+                          {(product.image || (product.images && product.images.length > 0)) ? (
                             <img 
-                              src={product.image} 
+                              src={product.image || product.images[0]} 
                               alt={product.name}
                               className="w-8 h-8 md:w-10 md:h-10 rounded-lg object-cover flex-shrink-0"
+                              onError={(e) => {
+                                console.log('Image failed to load:', product.image || product.images[0]);
+                                e.target.style.display = 'none';
+                                e.target.nextSibling.style.display = 'flex';
+                              }}
                             />
-                          ) : (
-                            <div className="w-8 h-8 md:w-10 md:h-10 bg-gray-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                              <Package size={14} className="text-gray-400 md:w-4 md:h-4" />
-                            </div>
-                          )}
+                          ) : null}
+                          <div className="w-8 h-8 md:w-10 md:h-10 bg-gray-600 rounded-lg flex items-center justify-center flex-shrink-0" style={{display: (product.image || (product.images && product.images.length > 0)) ? 'none' : 'flex'}}>
+                            <Package size={14} className="text-gray-400 md:w-4 md:h-4" />
+                          </div>
                           <div className="min-w-0 flex-1">
                             <span className="text-white text-sm md:text-base block leading-tight break-words">{product.name}</span>
                             <div className="sm:hidden text-xs text-gray-400 mt-1">

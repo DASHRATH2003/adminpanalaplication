@@ -53,14 +53,22 @@ export const categoryService = {
       }
 
       const docRef = await addDoc(collection(db, 'category'), {
-        ...categoryData,
-        image: imageUrl,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+        id: '',
+        name: categoryData.name,
+        image: imageUrl
+      });
+
+      // Update the document with its own ID
+      await updateDoc(doc(db, 'category', docRef.id), {
+        id: docRef.id
       });
       
       console.log('Category added with ID:', docRef.id);
-      return docRef.id;
+      return {
+        id: docRef.id,
+        name: categoryData.name,
+        image: imageUrl
+      };
     } catch (error) {
       console.error('Error adding category:', error);
       throw error;
@@ -81,7 +89,9 @@ export const categoryService = {
   // Update category
   async update(categoryId, categoryData, imageFile) {
     try {
-      let updateData = { ...categoryData };
+      let updateData = {
+        name: categoryData.name
+      };
       
       // Upload new image if provided
       if (imageFile) {
@@ -89,9 +99,9 @@ export const categoryService = {
         const snapshot = await uploadBytes(imageRef, imageFile);
         const imageUrl = await getDownloadURL(snapshot.ref);
         updateData.image = imageUrl;
+      } else if (categoryData.image) {
+        updateData.image = categoryData.image;
       }
-      
-      updateData.updatedAt = serverTimestamp();
       
       await updateDoc(doc(db, 'category', categoryId), updateData);
       console.log('Category updated successfully');

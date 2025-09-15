@@ -1,376 +1,483 @@
-import React, { useState, useEffect } from 'react';
-import JsonUpload from '../components/JsonUpload';
-import { Upload, FileText, CheckCircle, AlertCircle, Trash2 } from 'lucide-react';
-import bulkUploadService from '../firebase/bulkUploadService';
+import React, { useState } from 'react'
+import { Upload, FileText, CheckCircle, AlertCircle, X, Eye } from 'lucide-react'
+import { collection, addDoc, writeBatch, doc, getDocs, deleteDoc } from 'firebase/firestore'
+import { db } from '../firebase/config'
 
-const JsonUploadPage = () => {
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [uploadHistory, setUploadHistory] = useState([]);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [stats, setStats] = useState({
-    totalUploads: 0,
-    successfulUploads: 0,
-    failedUploads: 0,
-    lastUpload: null
-  });
+const JsonBulkUpload = () => {
+  const [uploadedFile, setUploadedFile] = useState(null)
+  const [jsonData, setJsonData] = useState('')
+  const [validationResults, setValidationResults] = useState(null)
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [message, setMessage] = useState('')
+  const [uploadHistory, setUploadHistory] = useState([])
 
-  useEffect(() => {
-    // Load upload history from localStorage
-    const history = JSON.parse(localStorage.getItem('jsonUploadHistory') || '[]');
-    setUploadHistory(history);
-    
-    // Calculate stats
-    const totalUploads = history.length;
-    const successfulUploads = history.filter(h => h.status === 'success').length;
-    const failedUploads = history.filter(h => h.status === 'failed').length;
-    const lastUpload = history.length > 0 ? history[0] : null;
-    
-    setStats({
-      totalUploads,
-      successfulUploads,
-      failedUploads,
-      lastUpload
-    });
-  }, []);
-
-  const handleDeleteUpload = (uploadId) => {
-    if (window.confirm('Are you sure you want to delete this upload record?')) {
-      const updatedHistory = uploadHistory.filter(upload => upload.id !== uploadId);
-      setUploadHistory(updatedHistory);
-      localStorage.setItem('jsonUploadHistory', JSON.stringify(updatedHistory));
-      
-      // Recalculate stats
-      const totalUploads = updatedHistory.length;
-      const successfulUploads = updatedHistory.filter(h => h.status === 'success').length;
-      const failedUploads = updatedHistory.filter(h => h.status === 'failed').length;
-      const lastUpload = updatedHistory.length > 0 ? updatedHistory[0] : null;
-      
-      setStats({
-        totalUploads,
-        successfulUploads,
-        failedUploads,
-        lastUpload
-      });
-    }
-  };
-
-  const handleUpload = async (jsonData) => {
-    try {
-      const result = await bulkUploadService.uploadProducts(jsonData, (progress) => {
-        console.log(`Upload progress: ${progress}%`);
-      });
-      
-      // Add to upload history
-      const uploadRecord = {
-        id: Date.now(),
-        timestamp: new Date().toISOString(),
-        status: 'success',
-        totalProducts: jsonData.length,
-        successCount: result.success.length,
-        errorCount: result.errors.length,
-        fileName: 'JSON Upload'
-      };
-      
-      const newHistory = [uploadRecord, ...uploadHistory].slice(0, 10); // Keep last 10 uploads
-      setUploadHistory(newHistory);
-      localStorage.setItem('jsonUploadHistory', JSON.stringify(newHistory));
-      
-      // Update stats
-      setStats(prev => ({
-        totalUploads: prev.totalUploads + 1,
-        successfulUploads: prev.successfulUploads + 1,
-        failedUploads: prev.failedUploads,
-        lastUpload: uploadRecord
-      }));
-      
-      console.log('Upload successful:', result);
-    } catch (error) {
-      console.error('Upload failed:', error);
-      
-      // Add failed upload to history
-      const uploadRecord = {
-        id: Date.now(),
-        timestamp: new Date().toISOString(),
-        status: 'failed',
-        totalProducts: jsonData.length,
-        successCount: 0,
-        errorCount: jsonData.length,
-        fileName: 'JSON Upload',
-        error: error.message
-      };
-      
-      const newHistory = [uploadRecord, ...uploadHistory].slice(0, 10);
-      setUploadHistory(newHistory);
-      localStorage.setItem('jsonUploadHistory', JSON.stringify(newHistory));
-      
-      // Update stats
-      setStats(prev => ({
-        totalUploads: prev.totalUploads + 1,
-        successfulUploads: prev.successfulUploads,
-        failedUploads: prev.failedUploads + 1,
-        lastUpload: uploadRecord
-      }));
-      
-      throw error;
-    }
-  };
-
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  const handleDeleteAllProducts = async () => {
-    if (!window.confirm('Are you sure you want to delete ALL products from Firebase? This action cannot be undone!')) {
-      return;
-    }
-
-    setIsDeleting(true);
-    try {
-      console.log('Starting to delete all products...');
-      const result = await bulkUploadService.deleteAllProducts();
-      
-      if (result.success) {
-        alert(`Successfully deleted ${result.totalDeleted} products from Firebase!`);
-        console.log('Delete result:', result);
+  const sampleJsonStructure = {
+    products: [
+      {
+        name: "Sample Product",
+        description: "Product description",
+        price: 99.99,
+        comparePrice: 129.99,
+        sku: "SAMPLE-001",
+        category: "Electronics",
+        subcategory: "Smartphones",
+        stock: 50,
+        images: ["image1.jpg", "image2.jpg"],
+        specifications: [
+          { "key": "Brand", "value": "Sample Brand" },
+          { "key": "Model", "value": "Sample Model" }
+        ],
+        weight: 0.5,
+        dimensions: {
+          length: 10,
+          width: 5,
+          height: 2
+        },
         
-        // Reset stats since all products are deleted
-        setStats({
-          totalUploads: 0,
-          successfulUploads: 0,
-          failedUploads: 0,
-          lastUpload: null
-        });
-        
-        // Clear upload history
-        setUploadHistory([]);
-        localStorage.removeItem('jsonUploadHistory');
-      } else {
-        alert(`Failed to delete products: ${result.error}`);
-        console.error('Delete failed:', result);
+        // You can add any custom fields - they will be preserved in database
+        customField1: "Any custom value",
+        customField2: 123,
+        customObject: {
+          key1: "value1",
+          key2: "value2"
+        },
+        customArray: ["item1", "item2", "item3"],
+        manufacturer: "Sample Manufacturer",
+        warranty: "1 year",
+        color: "Black",
+        material: "Plastic",
+        origin: "Made in India"
       }
+    ],
+    note: "You can add ANY custom fields to your products - all data will be preserved in the database. You can also upload a direct array of products without the 'products' wrapper. Specifications can be an object or array format. Only 'name' field is required."
+  }
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0]
+    if (file && file.type === 'application/json') {
+      setUploadedFile(file)
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        setJsonData(event.target.result)
+        validateJson(event.target.result)
+      }
+      reader.readAsText(file)
+    } else {
+      alert('Please upload a valid JSON file')
+    }
+  }
+
+  const validateJson = (jsonString) => {
+    try {
+      const data = JSON.parse(jsonString)
+      const results = {
+        isValid: true,
+        errors: [],
+        warnings: [],
+        recordCount: 0
+      }
+
+      // Extract products from any format
+      let products = []
+      
+      if (Array.isArray(data)) {
+        // Direct array format
+        products = data
+      } else if (data.products && Array.isArray(data.products)) {
+        // Object with products property
+        products = data.products
+      } else if (data.data && Array.isArray(data.data)) {
+        // Object with data property
+        products = data.data
+      } else if (data.items && Array.isArray(data.items)) {
+        // Object with items property
+        products = data.items
+      } else if (typeof data === 'object' && data !== null) {
+        // Single product object
+        products = [data]
+      } else {
+        results.errors.push('JSON must contain product data in any of these formats: array, {products: []}, {data: []}, {items: []}, or single object')
+        results.isValid = false
+        setValidationResults(results)
+        return
+      }
+
+      results.recordCount = products.length
+      
+      products.forEach((product, index) => {
+        // Very flexible validation - accept any object
+        if (typeof product !== 'object' || product === null) {
+          results.errors.push(`Item ${index + 1}: Must be an object`)
+          return
+        }
+        // No field-specific validation - accept any data structure
+      })
+
+      // Always consider valid if we have at least one item
+      if (products.length === 0) {
+        results.errors.push('No products found in the JSON data')
+        results.isValid = false
+      }
+
+      setValidationResults(results)
     } catch (error) {
-      console.error('Error deleting products:', error);
-      alert(`Error deleting products: ${error.message}`);
+      setValidationResults({
+        isValid: false,
+        errors: [`Invalid JSON format: ${error.message}`],
+        warnings: [],
+        recordCount: 0
+      })
+    }
+  }
+
+  const processUpload = async () => {
+    if (!validationResults?.isValid) {
+      alert('Please fix validation errors before processing')
+      return
+    }
+
+    setIsProcessing(true)
+    setMessage('')
+    
+    try {
+      const data = JSON.parse(jsonData)
+      
+      // Extract products from any format (same logic as validation)
+      let products = []
+      if (Array.isArray(data)) {
+        products = data
+      } else if (data.products && Array.isArray(data.products)) {
+        products = data.products
+      } else if (data.data && Array.isArray(data.data)) {
+        products = data.data
+      } else if (data.items && Array.isArray(data.items)) {
+        products = data.items
+      } else if (typeof data === 'object' && data !== null) {
+        products = [data]
+      }
+      
+      // No field processing - save data as-is
+      
+      let successCount = 0
+      let errorCount = 0
+      const errors = []
+      
+      // Process products in batches of 500 (Firestore batch limit)
+      const batchSize = 500
+      
+      for (let i = 0; i < products.length; i += batchSize) {
+        const batch = writeBatch(db)
+        const batchProducts = products.slice(i, i + batchSize)
+        
+        batchProducts.forEach((product) => {
+          try {
+            // Save exactly what's in the JSON file - no modifications or additions
+            const productData = {
+              ...product
+              // Save only the data from JSON file - no extra fields
+            }
+            
+            const docRef = doc(collection(db, 'products'))
+            batch.set(docRef, productData)
+            successCount++
+          } catch (error) {
+            errorCount++
+            errors.push(`Product ${product.name || product.title || product.productName || 'Unknown'}: ${error.message}`)
+          }
+        })
+        
+        await batch.commit()
+      }
+      
+      // Update upload history
+      const newUpload = {
+        id: Date.now(),
+        filename: uploadedFile.name,
+        uploadDate: new Date().toLocaleString(),
+        status: errorCount === 0 ? 'success' : errorCount < products.length ? 'partial' : 'error',
+        recordsProcessed: products.length,
+        recordsSuccess: successCount,
+        recordsError: errorCount
+      }
+      
+      setUploadHistory(prev => [newUpload, ...prev])
+      
+      if (errorCount === 0) {
+        setMessage(`Successfully uploaded ${successCount} products to Firebase!`)
+      } else {
+        setMessage(`Upload completed with ${successCount} successes and ${errorCount} errors. Check console for details.`)
+        console.error('Upload errors:', errors)
+      }
+      
+      // Reset form
+      setUploadedFile(null)
+      setJsonData('')
+      setValidationResults(null)
+      
+    } catch (error) {
+      console.error('Error during bulk upload:', error)
+      setMessage('Error during upload. Please try again.')
     } finally {
-       setIsDeleting(false);
-     }
-   };
+      setIsProcessing(false)
+    }
+  }
+
+
+
+  const deleteAllProducts = async () => {
+    const confirmDelete = window.confirm('Are you sure you want to delete all products? This action cannot be undone.')
+    
+    if (!confirmDelete) return
+    
+    setIsProcessing(true)
+    setMessage('')
+    
+    try {
+      const productsCollection = collection(db, 'products')
+      const snapshot = await getDocs(productsCollection)
+      
+      if (snapshot.empty) {
+        setMessage('No products found to delete.')
+        setIsProcessing(false)
+        return
+      }
+      
+      const batch = writeBatch(db)
+      let deleteCount = 0
+      
+      snapshot.docs.forEach((docSnapshot) => {
+        batch.delete(docSnapshot.ref)
+        deleteCount++
+      })
+      
+      await batch.commit()
+      
+      setMessage(`Successfully deleted ${deleteCount} products.`)
+      
+      // Clear upload history from localStorage as well
+      localStorage.removeItem('uploadHistory')
+      
+      // Refresh stats after deletion
+      fetchStats()
+      
+    } catch (error) {
+      console.error('Error deleting products:', error)
+      setMessage('Error occurred while deleting products. Please try again.')
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'success': return 'bg-green-100 text-green-800'
+      case 'partial': return 'bg-yellow-100 text-yellow-800'
+      case 'error': return 'bg-red-100 text-red-800'
+      default: return 'bg-gray-100 text-gray-800'
+    }
+  }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">JSON Bulk Upload</h1>
-          <p className="text-gray-400">Upload products in bulk using JSON files</p>
-        </div>
+    <div className="min-h-screen bg-gray-900 p-4 sm:p-6">
+      {/* Header */}
+      <div className="mb-6">
+        <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">JSON Bulk Upload</h1>
+        <p className="text-gray-400 text-sm sm:text-base">Upload products in bulk using JSON files</p>
+      </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-gray-800 rounded-lg p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-400 text-sm">Total Uploads</p>
-                <p className="text-2xl font-bold text-white">{stats.totalUploads}</p>
-              </div>
-              <Upload className="w-8 h-8 text-blue-400" />
+      {/* Statistics Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-6">
+        <div className="bg-gray-800 rounded-lg p-4 sm:p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-gray-400 text-xs sm:text-sm">Total Uploads</p>
+              <p className="text-xl sm:text-3xl font-bold text-white">{uploadHistory.length}</p>
             </div>
-          </div>
-          
-          <div className="bg-gray-800 rounded-lg p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-400 text-sm">Successful</p>
-                <p className="text-2xl font-bold text-green-400">{stats.successfulUploads}</p>
-              </div>
-              <CheckCircle className="w-8 h-8 text-green-400" />
-            </div>
-          </div>
-          
-          <div className="bg-gray-800 rounded-lg p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-400 text-sm">Failed</p>
-                <p className="text-2xl font-bold text-red-400">{stats.failedUploads}</p>
-              </div>
-              <AlertCircle className="w-8 h-8 text-red-400" />
-            </div>
-          </div>
-          
-          <div className="bg-gray-800 rounded-lg p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-400 text-sm">Last Upload</p>
-                <p className="text-sm font-medium text-white">
-                  {stats.lastUpload ? formatDate(stats.lastUpload.timestamp) : 'No uploads yet'}
-                </p>
-              </div>
-              <FileText className="w-8 h-8 text-purple-400" />
+            <div className="text-blue-500">
+              <Upload className="w-6 h-6 sm:w-8 sm:h-8" />
             </div>
           </div>
         </div>
+        
+        <div className="bg-gray-800 rounded-lg p-4 sm:p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-gray-400 text-xs sm:text-sm">Successful</p>
+              <p className="text-xl sm:text-3xl font-bold text-white">{uploadHistory.filter(upload => upload.status === 'success').length}</p>
+            </div>
+            <div className="text-green-500">
+              <CheckCircle className="w-6 h-6 sm:w-8 sm:h-8" />
+            </div>
+          </div>
+        </div>
+        
+        <div className="bg-gray-800 rounded-lg p-4 sm:p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-gray-400 text-xs sm:text-sm">Failed</p>
+              <p className="text-xl sm:text-3xl font-bold text-white">{uploadHistory.filter(upload => upload.status === 'error').length}</p>
+            </div>
+            <div className="text-red-500">
+              <AlertCircle className="w-6 h-6 sm:w-8 sm:h-8" />
+            </div>
+          </div>
+        </div>
+        
+        <div className="bg-gray-800 rounded-lg p-4 sm:p-6 col-span-2 lg:col-span-1">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-gray-400 text-xs sm:text-sm">Last Upload</p>
+              <p className="text-sm sm:text-lg font-bold text-white">{uploadHistory.length > 0 ? uploadHistory[0].uploadDate : 'No uploads yet'}</p>
+            </div>
+            <div className="text-purple-500">
+              <FileText className="w-6 h-6 sm:w-8 sm:h-8" />
+            </div>
+          </div>
+        </div>
+      </div>
 
-        {/* Upload and Delete Buttons */}
-        <div className="mb-8 flex gap-4">
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition-colors font-medium"
+      {/* Upload Instructions */}
+      <div className="bg-gray-800 rounded-lg p-4 sm:p-6 mb-6">
+        <h3 className="text-base sm:text-lg font-semibold text-white mb-4">Upload JSON File</h3>
+        <p className="text-gray-400 mb-4 text-sm sm:text-base">Select any JSON file containing product data. Supports any format - arrays, objects, single products, and flexible field names.</p>
+        
+        
+        
+        <div className="border-2 border-dashed border-gray-600 rounded-lg p-6 sm:p-8 text-center">
+          <Upload className="w-8 h-8 sm:w-12 sm:h-12 text-gray-400 mx-auto mb-4" />
+          <p className="text-gray-300 mb-2 text-sm sm:text-base">Drag and drop your JSON file here, or click to browse</p>
+          <input
+            type="file"
+            accept=".json"
+            onChange={handleFileUpload}
+            className="hidden"
+            id="json-upload"
+          />
+          <label
+            htmlFor="json-upload"
+            className="bg-blue-600 text-white px-4 py-2 sm:px-6 sm:py-2 rounded-lg hover:bg-blue-700 cursor-pointer inline-block text-sm sm:text-base"
           >
-            <Upload className="w-5 h-5" />
-            Upload New JSON File
-          </button>
-          
-          <button
-            onClick={handleDeleteAllProducts}
-            disabled={isDeleting}
-            className="bg-red-600 hover:bg-red-700 disabled:bg-red-400 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg flex items-center gap-2 transition-colors font-medium"
-          >
-            <Trash2 className="w-5 h-5" />
-            {isDeleting ? 'Deleting...' : 'Delete All Products'}
-          </button>
+            Choose File
+          </label>
         </div>
+      </div>
 
-        {/* Upload History */}
-        <div className="bg-gray-800 rounded-lg overflow-hidden">
-          <div className="p-6 border-b border-gray-700">
-            <h2 className="text-xl font-semibold text-white">Upload History</h2>
-            <p className="text-gray-400 text-sm mt-1">Record of previous uploads</p>
-          </div>
+      {/* Action Buttons */}
+      <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-6">
+        <button 
+          onClick={deleteAllProducts}
+          disabled={isProcessing}
+          className="bg-red-600 text-white px-4 py-3 sm:px-6 rounded-lg hover:bg-red-700 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
+        >
+          <X className="w-4 h-4 mr-2" />
+          {isProcessing ? 'Deleting...' : 'Delete All Products'}
+        </button>
+      </div>
+
+      {/* File Upload Section */}
+      {uploadedFile && (
+        <div className="bg-gray-800 rounded-lg p-4 sm:p-6 mb-6">
+          <h3 className="text-base sm:text-lg font-semibold text-white mb-4 break-all">Uploaded File: {uploadedFile.name}</h3>
           
-          {uploadHistory.length > 0 ? (
-            <>
-              {/* Desktop Table View */}
-              <div className="hidden md:block overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-700">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                        Date & Time
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                        Status
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                        Total Products
-                      </th>
-
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                        File Name
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-700">
-                    {uploadHistory.map((upload) => (
-                      <tr key={upload.id} className="hover:bg-gray-700/50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                          {formatDate(upload.timestamp)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            upload.status === 'success' 
-                              ? 'bg-green-900/50 text-green-300' 
-                              : 'bg-red-900/50 text-red-300'
-                          }`}>
-                            {upload.status === 'success' ? (
-                              <CheckCircle className="w-3 h-3 mr-1" />
-                            ) : (
-                              <AlertCircle className="w-3 h-3 mr-1" />
-                            )}
-                            {upload.status === 'success' ? 'Success' : 'Failed'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                          {upload.totalProducts}
-                        </td>
-
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                          {upload.fileName}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <button 
-                            className="text-red-400 hover:text-red-300 transition-colors"
-                            onClick={() => handleDeleteUpload(upload.id)}
-                            title="Delete upload record"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              
-              {/* Mobile Card View */}
-              <div className="md:hidden space-y-4 p-6">
-                {uploadHistory.map((upload) => (
-                  <div key={upload.id} className="bg-gray-700 rounded-lg p-4">
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <div className="text-sm text-gray-300">{formatDate(upload.timestamp)}</div>
-                        <div className="text-lg font-medium text-white">{upload.fileName}</div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          upload.status === 'success' 
-                            ? 'bg-green-900/50 text-green-300' 
-                            : 'bg-red-900/50 text-red-300'
-                        }`}>
-                          {upload.status === 'success' ? (
-                            <CheckCircle className="w-3 h-3 mr-1" />
-                          ) : (
-                            <AlertCircle className="w-3 h-3 mr-1" />
-                          )}
-                          {upload.status === 'success' ? 'Success' : 'Failed'}
-                        </span>
-                        <button 
-                          className="text-red-400 hover:text-red-300 transition-colors p-1"
-                          onClick={() => handleDeleteUpload(upload.id)}
-                          title="Delete upload record"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 gap-4 text-sm">
-                      <div>
-                        <div className="text-gray-400">Total</div>
-                        <div className="text-white font-medium">{upload.totalProducts}</div>
-                      </div>
-
-                    </div>
+          {validationResults && (
+            <div className="mb-4">
+              <div className={`p-3 sm:p-4 rounded-lg ${
+                validationResults.isValid ? 'bg-green-900 border border-green-600' : 'bg-red-900 border border-red-600'
+              }`}>
+                <h4 className="font-semibold text-white mb-2 text-sm sm:text-base">
+                  {validationResults.isValid ? 'Validation Passed' : 'Validation Failed'}
+                </h4>
+                <p className="text-gray-300 mb-2 text-sm sm:text-base">Records found: {validationResults.recordCount}</p>
+                
+                {validationResults.errors.length > 0 && (
+                  <div className="mb-2">
+                    <p className="text-red-400 font-medium">Errors:</p>
+                    <ul className="text-red-300 text-sm list-disc list-inside">
+                      {validationResults.errors.map((error, index) => (
+                        <li key={index}>{error}</li>
+                      ))}
+                    </ul>
                   </div>
-                ))}
+                )}
+                
+                {validationResults.warnings.length > 0 && (
+                  <div>
+                    <p className="text-yellow-400 font-medium">Warnings:</p>
+                    <ul className="text-yellow-300 text-sm list-disc list-inside">
+                      {validationResults.warnings.map((warning, index) => (
+                        <li key={index}>{warning}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
-            </>
-          ) : (
-            <div className="p-12 text-center">
-              <FileText className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-400 mb-2">No upload history</h3>
-              <p className="text-gray-500">No JSON files have been uploaded yet</p>
+            </div>
+          )}
+          
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+            <button 
+              onClick={processUpload}
+              disabled={!validationResults?.isValid || isProcessing}
+              className="bg-green-600 text-white px-4 py-3 sm:px-6 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-sm sm:text-base"
+            >
+              <CheckCircle className="w-4 h-4 mr-2" />
+              {isProcessing ? 'Processing...' : 'Process Upload'}
+            </button>
+            
+
+          </div>
+          
+          {message && (
+            <div className="mt-4 p-3 sm:p-4 bg-blue-900 border border-blue-600 rounded-lg">
+              <p className="text-blue-300 text-sm sm:text-base">{message}</p>
             </div>
           )}
         </div>
+      )}
 
-        {/* JSON Upload Modal */}
-        <JsonUpload
-          isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
-          onUpload={handleUpload}
-        />
+      {/* Upload History */}
+      <div className="bg-gray-800 rounded-lg">
+        <div className="p-4 sm:p-6 border-b border-gray-700">
+          <h2 className="text-base sm:text-lg font-semibold text-white">Upload History</h2>
+          <p className="text-gray-400 text-xs sm:text-sm">Record of previous uploads</p>
+        </div>
+        
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[600px]">
+            <thead className="bg-gray-700">
+              <tr>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">DATE & TIME</th>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">STATUS</th>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">TOTAL PRODUCTS</th>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">FILE NAME</th>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">ACTIONS</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-700">
+              {uploadHistory.map((upload) => (
+                <tr key={upload.id} className="hover:bg-gray-700">
+                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-white">{upload.uploadDate}</td>
+                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      <CheckCircle className="w-3 h-3 mr-1" />
+                      Success
+                    </span>
+                  </td>
+                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-white">{upload.recordsProcessed}</td>
+                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-white truncate max-w-[150px]">{upload.filename}</td>
+                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm">
+                    <button className="text-red-400 hover:text-red-300">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default JsonUploadPage;
+export default JsonBulkUpload
