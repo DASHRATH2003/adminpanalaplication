@@ -112,6 +112,145 @@ export const categoryService = {
   }
 };
 
+// Orders Services
+export const orderService = {
+  // Get all orders
+  async getAll() {
+    try {
+      console.log('Fetching data from orders collection...');
+      const querySnapshot = await getDocs(collection(db, 'orders'));
+      const orders = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data
+        };
+      });
+      console.log('Orders found:', orders.length);
+      return orders;
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+      throw error;
+    }
+  },
+
+  // Get orders by status
+  async getByStatus(status) {
+    try {
+      const q = query(
+        collection(db, 'orders'), 
+        where('status', '==', status)
+      );
+      const querySnapshot = await getDocs(q);
+      const orders = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data
+        };
+      });
+      return orders;
+    } catch (error) {
+      console.error('Error fetching orders by status:', error);
+      throw error;
+    }
+  },
+
+  // Add new order
+  async add(orderData) {
+    try {
+      const docRef = await addDoc(collection(db, 'orders'), {
+        ...orderData
+      });
+      
+      console.log('Order added with ID:', docRef.id);
+      return {
+        id: docRef.id,
+        ...orderData
+      };
+    } catch (error) {
+      console.error('Error adding order:', error);
+      throw error;
+    }
+  },
+
+  // Update order
+  async update(orderId, orderData) {
+    try {
+      await updateDoc(doc(db, 'orders', orderId), {
+        ...orderData
+      });
+      
+      console.log('Order updated successfully');
+      return {
+        id: orderId,
+        ...orderData
+      };
+    } catch (error) {
+      console.error('Error updating order:', error);
+      throw error;
+    }
+  },
+
+  // Delete order
+  async delete(orderId) {
+    try {
+      await deleteDoc(doc(db, 'orders', orderId));
+      console.log('Order deleted successfully');
+    } catch (error) {
+      console.error('Error deleting order:', error);
+      throw error;
+    }
+  },
+
+  // Get single order
+  async getById(orderId) {
+    try {
+      const docRef = doc(db, 'orders', orderId);
+      const docSnap = await getDoc(docRef);
+      
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        return {
+          id: docSnap.id,
+          ...data
+        };
+      } else {
+        throw new Error('Order not found');
+      }
+    } catch (error) {
+      console.error('Error fetching order:', error);
+      throw error;
+    }
+  },
+
+  // Update order status
+  async updateStatus(orderId, status) {
+    try {
+      await updateDoc(doc(db, 'orders', orderId), {
+        status: status
+      });
+      console.log('Order status updated successfully');
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      throw error;
+    }
+  },
+
+  // Update payment status
+  async updatePaymentStatus(orderId, paymentStatus) {
+    try {
+      await updateDoc(doc(db, 'orders', orderId), {
+        paymentStatus: paymentStatus
+      });
+      console.log('Payment status updated successfully');
+    } catch (error) {
+      console.error('Error updating payment status:', error);
+      throw error;
+    }
+  }
+};
+
 export const userService = {
   // Get all users
   async getAll() {
@@ -208,7 +347,6 @@ export const messageService = {
     try {
       const conversation = {
         ...conversationData,
-        createdAt: serverTimestamp(),
         lastMessageTime: serverTimestamp()
       };
       
@@ -789,6 +927,220 @@ export const posterService = {
       };
     } catch (error) {
       console.error('Error updating poster:', error);
+      throw error;
+    }
+  }
+};
+
+// Coupon Services
+export const couponService = {
+  // Get all coupons
+  async getAll() {
+    try {
+      console.log('Fetching data from coupons collection...');
+      const querySnapshot = await getDocs(collection(db, 'coupons'));
+      const coupons = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          validUntil: data.validUntil?.toDate?.() || new Date()
+        };
+      });
+      console.log('Coupons found:', coupons.length);
+      return coupons;
+    } catch (error) {
+      console.error('Error fetching coupons:', error);
+      throw error;
+    }
+  },
+
+  // Get coupon by code
+  async getByCode(code) {
+    try {
+      const q = query(collection(db, 'coupons'), where('code', '==', code.toUpperCase()));
+      const querySnapshot = await getDocs(q);
+      if (querySnapshot.empty) {
+        return null;
+      }
+      const doc = querySnapshot.docs[0];
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        validUntil: data.validUntil?.toDate?.() || new Date()
+      };
+    } catch (error) {
+      console.error('Error fetching coupon by code:', error);
+      throw error;
+    }
+  },
+
+  // Add new coupon
+  async add(couponData) {
+    try {
+      // Check if coupon code already exists
+      const existingCoupon = await this.getByCode(couponData.code);
+      if (existingCoupon) {
+        throw new Error('Coupon code already exists');
+      }
+
+      const docRef = await addDoc(collection(db, 'coupons'), {
+        ...couponData,
+        code: couponData.code.toUpperCase(),
+        validUntil: new Date(couponData.validUntil),
+        usageCount: 0,
+        isActive: true
+      });
+      
+      console.log('Coupon added with ID:', docRef.id);
+      return {
+        id: docRef.id,
+        ...couponData,
+        code: couponData.code.toUpperCase(),
+        validUntil: new Date(couponData.validUntil),
+        usageCount: 0,
+        isActive: true
+      };
+    } catch (error) {
+      console.error('Error adding coupon:', error);
+      throw error;
+    }
+  },
+
+  // Update coupon
+  async update(couponId, couponData) {
+    try {
+      // If code is being updated, check for duplicates
+      if (couponData.code) {
+        const existingCoupon = await this.getByCode(couponData.code);
+        if (existingCoupon && existingCoupon.id !== couponId) {
+          throw new Error('Coupon code already exists');
+        }
+        couponData.code = couponData.code.toUpperCase();
+      }
+
+      const updateData = {
+        ...couponData
+      };
+
+      if (couponData.validUntil) {
+        updateData.validUntil = new Date(couponData.validUntil);
+      }
+
+      await updateDoc(doc(db, 'coupons', couponId), updateData);
+      
+      console.log('Coupon updated with ID:', couponId);
+      return {
+        id: couponId,
+        ...couponData
+      };
+    } catch (error) {
+      console.error('Error updating coupon:', error);
+      throw error;
+    }
+  },
+
+  // Delete coupon
+  async delete(couponId) {
+    try {
+      console.log('Delete coupon method called with ID:', couponId);
+      await deleteDoc(doc(db, 'coupons', couponId));
+      console.log('Coupon deleted successfully');
+    } catch (error) {
+      console.error('Error deleting coupon:', error);
+      throw error;
+    }
+  },
+
+  // Get coupon by ID
+  async getById(couponId) {
+    try {
+      const docRef = doc(db, 'coupons', couponId);
+      const docSnap = await getDoc(docRef);
+      
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        return {
+          id: docSnap.id,
+          ...data,
+          validUntil: data.validUntil?.toDate?.() || new Date()
+        };
+      } else {
+        throw new Error('Coupon not found');
+      }
+    } catch (error) {
+      console.error('Error fetching coupon:', error);
+      throw error;
+    }
+  },
+
+  // Toggle coupon status
+  async toggleStatus(couponId, isActive) {
+    try {
+      await updateDoc(doc(db, 'coupons', couponId), {
+        isActive: isActive
+      });
+      
+      console.log('Coupon status updated:', couponId, isActive);
+      return { id: couponId, isActive };
+    } catch (error) {
+      console.error('Error updating coupon status:', error);
+      throw error;
+    }
+  },
+
+  // Validate coupon for use
+  async validateCoupon(code, orderAmount = 0) {
+    try {
+      const coupon = await this.getByCode(code);
+      
+      if (!coupon) {
+        return { valid: false, message: 'Coupon not found' };
+      }
+
+      if (!coupon.isActive) {
+        return { valid: false, message: 'Coupon is inactive' };
+      }
+
+      if (new Date() > coupon.validUntil) {
+        return { valid: false, message: 'Coupon has expired' };
+      }
+
+      if (coupon.maxUses && coupon.usageCount >= coupon.maxUses) {
+        return { valid: false, message: 'Coupon usage limit reached' };
+      }
+
+      if (coupon.minOrderAmount && orderAmount < coupon.minOrderAmount) {
+        return { 
+          valid: false, 
+          message: `Minimum order amount of ₹${coupon.minOrderAmount} required` 
+        };
+      }
+
+      return { 
+        valid: true, 
+        coupon: coupon,
+        message: 'Coupon is valid' 
+      };
+    } catch (error) {
+      console.error('Error validating coupon:', error);
+      return { valid: false, message: 'Error validating coupon' };
+    }
+  },
+
+  // Use coupon (increment usage count)
+  async useCoupon(couponId) {
+    try {
+      const coupon = await this.getById(couponId);
+      await updateDoc(doc(db, 'coupons', couponId), {
+        usageCount: (coupon.usageCount || 0) + 1
+      });
+      
+      console.log('Coupon usage incremented:', couponId);
+      return true;
+    } catch (error) {
+      console.error('Error using coupon:', error);
       throw error;
     }
   }
