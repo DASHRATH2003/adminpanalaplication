@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, RefreshCw, MoreVertical, Package, AlertTriangle, Clock, Archive, Truck, CheckCircle, X, Camera, Edit, Trash2, Upload } from 'lucide-react';
 import { productService, categoryService, subCategoryService } from '../firebase/services';
-import { testFirebaseConnection } from '../firebase/test';
 import BulkUpload from '../components/BulkUpload';
 import { bulkUploadProducts } from '../firebase/bulkUploadService';
 

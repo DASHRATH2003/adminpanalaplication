@@ -8,13 +8,134 @@ import {
   updateDoc,
   query,
   orderBy,
-  serverTimestamp,
   onSnapshot,
   where,
   limit
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from './config';
+
+// Admin Services
+export const adminService = {
+  // Add new admin
+  async add(adminData) {
+    try {
+      console.log('Adding admin to Firebase:', adminData);
+      const docRef = await addDoc(collection(db, 'admin'), adminData);
+      console.log('Admin added with ID:', docRef.id);
+      return { id: docRef.id, ...adminData };
+    } catch (error) {
+      console.error('Error adding admin:', error);
+      throw error;
+    }
+  },
+
+  // Get all admins
+  async getAll() {
+    try {
+      console.log('Fetching admins from Firebase...');
+      const querySnapshot = await getDocs(collection(db, 'admin'));
+      const admins = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      console.log('Admins found:', admins.length);
+      return admins;
+    } catch (error) {
+      console.error('Error fetching admins:', error);
+      throw error;
+    }
+  },
+
+  // Get admin by email
+  async getByEmail(email) {
+    try {
+      const q = query(collection(db, 'admin'), where('email', '==', email));
+      const querySnapshot = await getDocs(q);
+      if (!querySnapshot.empty) {
+        const doc = querySnapshot.docs[0];
+        return { id: doc.id, ...doc.data() };
+      }
+      return null;
+    } catch (error) {
+      console.error('Error fetching admin by email:', error);
+      throw error;
+    }
+  },
+
+  // Update admin
+  async update(id, adminData) {
+    try {
+      const adminRef = doc(db, 'admin', id);
+      await updateDoc(adminRef, adminData);
+      console.log('Admin updated successfully');
+      return { id, ...adminData };
+    } catch (error) {
+      console.error('Error updating admin:', error);
+      throw error;
+    }
+  },
+
+  // Delete admin
+  async delete(id) {
+    try {
+      await deleteDoc(doc(db, 'admin', id));
+      console.log('Admin deleted successfully');
+      return true;
+    } catch (error) {
+      console.error('Error deleting admin:', error);
+      throw error;
+    }
+  },
+
+  // Update FCM token for admin
+  async updateFCMToken(adminId, fcmToken) {
+    try {
+      const adminRef = doc(db, 'admin', adminId);
+      await updateDoc(adminRef, {
+        fcmToken: fcmToken,
+        fcmTokenUpdatedAt: new Date().toISOString()
+      });
+      console.log('FCM token updated successfully for admin:', adminId);
+      return true;
+    } catch (error) {
+      console.error('Error updating FCM token:', error);
+      throw error;
+    }
+  },
+
+  // Get admin by FCM token
+  async getByFCMToken(fcmToken) {
+    try {
+      const q = query(collection(db, 'admin'), where('fcmToken', '==', fcmToken));
+      const querySnapshot = await getDocs(q);
+      if (!querySnapshot.empty) {
+        const doc = querySnapshot.docs[0];
+        return { id: doc.id, ...doc.data() };
+      }
+      return null;
+    } catch (error) {
+      console.error('Error fetching admin by FCM token:', error);
+      throw error;
+    }
+  },
+
+  // Remove FCM token from admin (for logout)
+  async removeFCMToken(adminId) {
+    try {
+      const adminRef = doc(db, 'admin', adminId);
+      await updateDoc(adminRef, {
+        fcmToken: null,
+        fcmTokenUpdatedAt: new Date().toISOString()
+      });
+      console.log('FCM token removed successfully for admin:', adminId);
+      return true;
+    } catch (error) {
+      console.error('Error removing FCM token:', error);
+      throw error;
+    }
+  }
+};
 
 // Categories Services
 // Categories Services
@@ -560,6 +681,9 @@ export const productService = {
         }
       }
 
+      // Generate productId if not provided
+      const productId = productData.productId || `PROD_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
       const docRef = await addDoc(collection(db, 'products'), {
         name: productData.name,
         description: productData.description || '',
@@ -575,7 +699,8 @@ export const productService = {
         cashOnDelivery: productData.cashOnDelivery || 'no',
         date: productData.date || new Date().toISOString().split('T')[0],
         images: imageUrls,
-        image: imageUrls[0] || null // Keep backward compatibility
+        image: imageUrls[0] || null, // Keep backward compatibility
+        productId: productId
       });
 
       return {
@@ -594,7 +719,8 @@ export const productService = {
         cashOnDelivery: productData.cashOnDelivery || 'no',
         date: productData.date || new Date().toISOString().split('T')[0],
         images: imageUrls,
-        image: imageUrls[0] || null
+        image: imageUrls[0] || null,
+        productId: productId
       };
     } catch (error) {
       console.error('Error adding product:', error);
@@ -616,7 +742,6 @@ export const productService = {
   async update(productId, productData, imageFiles) {
     try {
       let updateData = { ...productData };
-      
       // Upload new images if provided
       if (imageFiles && imageFiles.length > 0) {
         let imageUrls = [];
@@ -630,7 +755,7 @@ export const productService = {
         updateData.images = imageUrls;
         updateData.image = imageUrls[0] || null; // Keep backward compatibility
       }
-      
+            
       await updateDoc(doc(db, 'products', productId), {
         ...updateData
       });
@@ -863,27 +988,29 @@ export const posterService = {
 
       const autoBannerId = generateBannerId();
 
-      const docRef = await addDoc(collection(db, 'posters'), {
-        title: posterData.title || posterData.bannerName || '',
-        description: posterData.description || '',
+      // Create banner data without price and title for Firebase
+      const firebaseData = {
         status: posterData.status || 'active',
         image: imageUrl,
         bannerId: autoBannerId,
         bannerName: posterData.bannerName || null,
-        productId: posterData.productId || null,
-        price: posterData.price || null
-      });
+        productId: posterData.productId || null
+      };
+
+      // Only add description if provided
+      if (posterData.description) {
+        firebaseData.description = posterData.description;
+      }
+
+      const docRef = await addDoc(collection(db, 'posters'), firebaseData);
 
       return {
         id: docRef.id,
-        title: posterData.title || posterData.bannerName || '',
-        description: posterData.description || '',
         status: posterData.status || 'active',
         image: imageUrl,
         bannerId: autoBannerId,
         bannerName: posterData.bannerName || null,
-        productId: posterData.productId || null,
-        price: posterData.price || null
+        productId: posterData.productId || null
       };
     } catch (error) {
       console.error('Error adding poster:', error);
@@ -933,6 +1060,102 @@ export const posterService = {
 };
 
 // Coupon Services
+// Notification Services for FCM
+export const notificationService = {
+  // Send notification to specific admin by FCM token
+  async sendToAdmin(fcmToken, notification, data = {}) {
+    try {
+      // This would typically be done from your backend server
+      // For now, we'll just log the notification details
+      console.log('📤 Sending notification to admin:', {
+        token: fcmToken,
+        notification: notification,
+        data: data
+      });
+      
+      // In a real implementation, you would call your backend API
+      // which would use Firebase Admin SDK to send the notification
+      return {
+        success: true,
+        message: 'Notification queued for sending'
+      };
+    } catch (error) {
+      console.error('Error sending notification:', error);
+      throw error;
+    }
+  },
+
+  // Send notification to all active admins
+  async sendToAllAdmins(notification, data = {}) {
+    try {
+      const admins = await adminService.getAll();
+      const activeAdminsWithTokens = admins.filter(admin => 
+        admin.status === 'active' && admin.fcmToken
+      );
+      
+      console.log(`📤 Sending notification to ${activeAdminsWithTokens.length} active admins`);
+      
+      const results = [];
+      for (const admin of activeAdminsWithTokens) {
+        try {
+          const result = await this.sendToAdmin(admin.fcmToken, notification, data);
+          results.push({ adminId: admin.id, success: true, result });
+        } catch (error) {
+          results.push({ adminId: admin.id, success: false, error: error.message });
+        }
+      }
+      
+      return {
+        success: true,
+        totalSent: results.filter(r => r.success).length,
+        totalFailed: results.filter(r => !r.success).length,
+        results: results
+      };
+    } catch (error) {
+      console.error('Error sending notification to all admins:', error);
+      throw error;
+    }
+  },
+
+  // Log notification history (for tracking)
+  async logNotification(notificationData) {
+    try {
+      const logData = {
+        ...notificationData,
+        sentAt: new Date().toISOString(),
+        status: 'sent'
+      };
+      
+      const docRef = await addDoc(collection(db, 'notification_logs'), logData);
+      console.log('Notification logged with ID:', docRef.id);
+      return { id: docRef.id, ...logData };
+    } catch (error) {
+      console.error('Error logging notification:', error);
+      throw error;
+    }
+  },
+
+  // Get notification history
+  async getNotificationHistory(limit = 50) {
+    try {
+      const q = query(
+        collection(db, 'notification_logs'),
+        orderBy('sentAt', 'desc'),
+        limit(limit)
+      );
+      const querySnapshot = await getDocs(q);
+      const notifications = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      return notifications;
+    } catch (error) {
+      console.error('Error fetching notification history:', error);
+      throw error;
+    }
+  }
+};
+
 export const couponService = {
   // Get all coupons
   async getAll() {

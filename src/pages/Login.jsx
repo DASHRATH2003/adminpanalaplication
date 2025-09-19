@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, User, Lock, ShoppingBag } from 'lucide-react';
+import { Eye, EyeOff, User, Lock, ShoppingBag, Settings } from 'lucide-react';
+import { adminService } from '../firebase/services';
+import { fixExistingAdmins } from '../utils/adminFixer';
+import { fcmUtils } from '../utils/fcmUtils';
 
 const Login = ({ setIsAuthenticated }) => {
   const [formData, setFormData] = useState({
@@ -10,6 +13,8 @@ const Login = ({ setIsAuthenticated }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
+  const [isFixing, setIsFixing] = useState(false);
+  const [fixResult, setFixResult] = useState(null);
   const navigate = useNavigate();
 
   const handleInputChange = (e) => {
@@ -45,6 +50,27 @@ const Login = ({ setIsAuthenticated }) => {
     return newErrors;
   };
 
+  const handleFixAdmins = async () => {
+    setIsFixing(true);
+    setFixResult(null);
+    
+    try {
+      const result = await fixExistingAdmins();
+      setFixResult(result);
+      
+      if (result.fixed > 0) {
+        alert(`Fixed ${result.fixed} admin accounts. Default password is: ${result.defaultPassword}\n\nFixed admins: ${result.fixedEmails.join(', ')}\n\nPlease login with the default password and change it immediately.`);
+      } else {
+        alert('All admin accounts are already properly configured.');
+      }
+    } catch (error) {
+      console.error('Error fixing admins:', error);
+      alert('Error fixing admin accounts. Please check console for details.');
+    } finally {
+      setIsFixing(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     const newErrors = validateForm();
@@ -57,32 +83,60 @@ const Login = ({ setIsAuthenticated }) => {
     setIsLoading(true);
     
     try {
-      // Check valid credentials
-      const validCredentials = [
-        { email: 'admin@shop.com', password: 'admin123', name: 'DrDisagree' },
-        { email: 'sadhanacart@gmail.com', password: 'sadhana123', name: 'Sadhana Admin' },
-        { email: 'support@sadhanacart.com', password: 'sadhanaCart@83', name: 'Support Admin' }
-      ];
+      // Check if admin exists in Firebase with this email
+      const admin = await adminService.getByEmail(formData.email);
       
-      const validUser = validCredentials.find(
-        user => user.email === formData.email && user.password === formData.password
-      );
-      
-      if (!validUser) {
+      if (!admin) {
         setErrors({ general: 'Invalid email or password' });
         setIsLoading(false);
         return;
       }
       
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Check if password matches
+      if (admin.password !== formData.password) {
+        setErrors({ general: 'Invalid email or password' });
+        setIsLoading(false);
+        return;
+      }
       
+      // Check if admin is active
+      if (admin.status !== 'active') {
+        setErrors({ general: 'Account is not active. Please contact administrator.' });
+        setIsLoading(false);
+        return;
+      }
+      
+      // Update FCM token for logged in admin (force generate new token)
+      try {
+        if (fcmUtils.isSupported()) {
+          console.log('🔄 Force generating new FCM token for login...');
+          const fcmResult = await fcmUtils.forceGenerateNewToken();
+          if (fcmResult.success) {
+            await adminService.updateFCMToken(admin.id, fcmResult.token);
+            console.log('✅ New FCM token generated and updated for logged in admin:', fcmResult.token);
+          } else {
+            console.log('⚠️ Force generation failed, trying current token...');
+            // Fallback to current token if force generation fails
+            const currentTokenResult = await fcmUtils.getCurrentToken();
+            if (currentTokenResult.success) {
+              await adminService.updateFCMToken(admin.id, currentTokenResult.token);
+              console.log('✅ Current FCM token updated for logged in admin');
+            }
+          }
+        }
+      } catch (fcmError) {
+        console.error('⚠️ Error updating FCM token on login:', fcmError);
+        // Don't block login if FCM token update fails
+      }
+
       // Store authentication data
-      localStorage.setItem('authToken', 'dummy-token-123');
+      localStorage.setItem('authToken', `firebase-token-${admin.id}`);
       localStorage.setItem('userData', JSON.stringify({
-        name: validUser.name,
-        email: formData.email,
-        role: 'admin'
+        id: admin.id,
+        name: admin.fullName,
+        email: admin.email,
+        role: admin.role,
+        adminId: admin.adminId
       }));
       
       // Update authentication state
@@ -90,7 +144,9 @@ const Login = ({ setIsAuthenticated }) => {
       
       // Navigate to dashboard
       navigate('/');
+      
     } catch (error) {
+      console.error('Login error:', error);
       setErrors({ general: 'Login failed. Please try again.' });
     } finally {
       setIsLoading(false);
@@ -219,6 +275,45 @@ const Login = ({ setIsAuthenticated }) => {
                 'Sign in'
               )}
             </button>
+
+            {/* Fix Admins Button */}
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={handleFixAdmins}
+                disabled={isFixing}
+                className="w-full flex justify-center items-center py-2 px-4 border border-yellow-600 rounded-lg shadow-sm text-sm font-medium text-yellow-400 bg-yellow-900/20 hover:bg-yellow-900/30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors mb-4"
+              >
+                {isFixing ? (
+                  <div className="flex items-center">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-400 mr-2"></div>
+                    Fixing Admins...
+                  </div>
+                ) : (
+                  <div className="flex items-center">
+                    <Settings size={16} className="mr-2" />
+                    Fix Existing Admin Accounts
+                  </div>
+                )}
+              </button>
+              <p className="text-xs text-gray-500 mb-4">
+                Click if you can't login with existing Firebase admin account
+              </p>
+            </div>
+
+            {/* Register Link */}
+            <div className="text-center">
+              <p className="text-gray-400 text-sm">
+                Don't have an account?{' '}
+                <button
+                  type="button"
+                  onClick={() => navigate('/register')}
+                  className="text-blue-400 hover:text-blue-300 font-medium"
+                >
+                  Create new account
+                </button>
+              </p>
+            </div>
           </form>
 
 

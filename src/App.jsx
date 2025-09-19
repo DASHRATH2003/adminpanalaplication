@@ -20,6 +20,9 @@ import Profile from './pages/Profile';
 import JsonUploadPage from './pages/JsonUploadPage';
 
 import Login from './pages/Login';
+import Register from './pages/Register';
+import { fcmUtils } from './utils/fcmUtils';
+import './utils/fcmDebugger'; // For debugging FCM issues
 
 const App = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -42,6 +45,13 @@ const App = () => {
     if (authToken && userData) {
       setIsAuthenticated(true);
     }
+    
+    // Setup FCM foreground message listener
+    if (fcmUtils.isSupported()) {
+      fcmUtils.setupForegroundMessageListener();
+      console.log('✅ FCM foreground message listener setup completed');
+    }
+    
     setIsLoading(false);
   }, []);
 
@@ -61,6 +71,12 @@ const App = () => {
         <Route 
           path="/login" 
           element={isAuthenticated ? <Navigate to="/" replace /> : <Login setIsAuthenticated={setIsAuthenticated} />} 
+        />
+        
+        {/* Register Route - accessible only when not authenticated */}
+        <Route 
+          path="/register" 
+          element={isAuthenticated ? <Navigate to="/" replace /> : <Register />} 
         />
         
         {/* Protected Routes - accessible only when authenticated */}

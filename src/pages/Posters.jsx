@@ -12,7 +12,7 @@ const Posters = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState({
-    title: '',
+    bannerName: '',
     description: '',
     status: 'active',
     image: null
@@ -22,7 +22,7 @@ const Posters = () => {
     bannerName: '',
     productId: '',
     price: '',
-    offerPrice: '',
+    offerprice: '',
     image: null
   });
   const [imagePreview, setImagePreview] = useState(null);
@@ -103,7 +103,7 @@ const Posters = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (formData.title.trim()) {
+    if (formData.bannerName.trim()) {
       try {
         setLoading(true);
         
@@ -132,7 +132,7 @@ const Posters = () => {
   };
 
   const handleCancel = () => {
-    setFormData({ title: '', description: '', status: 'active', image: null });
+    setFormData({ bannerName: '', description: '', status: 'active', image: null });
     setImagePreview(null);
     setImageFile(null);
     setSelectedPoster(null);
@@ -144,9 +144,10 @@ const Posters = () => {
     setProductFormData({
       bannerId: '',
       bannerName: '',
-      productId: product.id,
+      // Use product.productid (small letters) if available, otherwise use product.id
+      productId: product.productid || product.productId || product.id,
       price: product.price.toString(),
-      offerPrice: product.offerPrice ? product.offerPrice.toString() : '',
+      offerprice: product.offerprice ? product.offerprice.toString() : '',
       image: null
     });
     setProductImagePreview(null);
@@ -157,9 +158,11 @@ const Posters = () => {
 
   const handleProductFormChange = (e) => {
     const { name, value } = e.target;
+    // Convert offerPrice to lowercase as user types
+    const processedValue = name === 'offerprice' ? value.toLowerCase() : value;
     setProductFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: processedValue
     }));
   };
 
@@ -179,29 +182,55 @@ const Posters = () => {
       try {
         setLoading(true);
         
-        // Create banner data
-        const bannerData = {
-          bannerName: productFormData.bannerName,
-          productId: productFormData.productId,
-          price: productFormData.price,
-          offerPrice: productFormData.offerPrice || '',
-          status: 'active'
-        };
+        // Convert offerPrice to lowercase for database storage
+        const lowercaseOfferPrice = productFormData.offerprice ? productFormData.offerprice.toLowerCase() : '';
         
-        const newBanner = await posterService.add(bannerData, productImageFile);
-        setPosters(prev => [newBanner, ...prev]);
+        // Check if banner already exists for this product
+        const existingBanner = posters.find(poster => poster.productId === productFormData.productId);
+        
+        if (existingBanner) {
+          // Update existing banner - only update existing fields, don't create new ones
+          const updatedBannerData = {
+            bannerName: productFormData.bannerName,
+            productId: productFormData.productId,
+            price: productFormData.price,
+            offerprice: lowercaseOfferPrice, // This will update the existing offerprice field
+            status: 'active'
+          };
+          
+          const updatedBanner = await posterService.update(existingBanner.id, updatedBannerData, productImageFile);
+          setPosters(prev => prev.map(poster => 
+            poster.id === existingBanner.id ? updatedBanner : poster
+          ));
+          
+          console.log('✅ Banner updated successfully:', updatedBanner.id);
+        } else {
+          // Create new banner
+          const bannerData = {
+            bannerName: productFormData.bannerName,
+            productId: productFormData.productId,
+            price: productFormData.price,
+            offerprice: lowercaseOfferPrice,
+            status: 'active'
+          };
+          
+          const newBanner = await posterService.add(bannerData, productImageFile);
+          setPosters(prev => [newBanner, ...prev]);
+          
+          console.log('✅ New banner created successfully:', newBanner.id);
+        }
         
         // Update original product if price or offer price changed
         if (selectedProduct) {
           const originalPrice = selectedProduct.price.toString();
-          const originalOfferPrice = selectedProduct.offerPrice ? selectedProduct.offerPrice.toString() : '';
+          const originalOfferPrice = selectedProduct.offerprice ? selectedProduct.offerprice.toString() : '';
           
-          if (productFormData.price !== originalPrice || productFormData.offerPrice !== originalOfferPrice) {
+          if (productFormData.price !== originalPrice || lowercaseOfferPrice !== originalOfferPrice) {
             try {
               const updatedProductData = {
                 ...selectedProduct,
                 price: parseFloat(productFormData.price),
-                offerPrice: productFormData.offerPrice ? parseFloat(productFormData.offerPrice) : 0
+                offerprice: lowercaseOfferPrice // Keep as lowercase string, don't convert to number
               };
               
               await productService.update(selectedProduct.id, updatedProductData);
@@ -209,14 +238,14 @@ const Posters = () => {
               // Update local products state
               setProducts(prev => prev.map(product => 
                 product.id === selectedProduct.id 
-                  ? { ...product, price: parseFloat(productFormData.price), offerPrice: productFormData.offerPrice ? parseFloat(productFormData.offerPrice) : 0 }
+                  ? { ...product, price: parseFloat(productFormData.price), offerprice: lowercaseOfferPrice }
                   : product
               ));
               
-              console.log('Product price updated successfully');
+              console.log('✅ Product price updated successfully');
             } catch (error) {
-              console.error('Error updating product price:', error);
-              // Don't show error to user as banner was created successfully
+              console.error('❌ Error updating product price:', error);
+              // Don't show error to user as banner was created/updated successfully
             }
           }
         }
@@ -227,7 +256,7 @@ const Posters = () => {
           bannerName: '',
           productId: '',
           price: '',
-          offerPrice: '',
+          offerprice: '',
           image: null
         });
         setProductImagePreview(null);
@@ -251,7 +280,7 @@ const Posters = () => {
       bannerName: '',
       productId: '',
       price: '',
-      offerPrice: '',
+      offerprice: '',
       image: null
     });
     setProductImagePreview(null);
@@ -263,7 +292,7 @@ const Posters = () => {
   const handleEdit = (poster) => {
     setSelectedPoster(poster);
     setFormData({
-      title: poster.title,
+      bannerName: poster.bannerName,
       description: poster.description || '',
       status: poster.status || 'active',
       image: null
@@ -339,7 +368,7 @@ const Posters = () => {
           <table className="w-full">
             <thead className="bg-gray-700">
               <tr>
-                <th className="px-6 py-4 text-left text-sm font-medium text-gray-300">Poster Title</th>
+                <th className="px-6 py-4 text-left text-sm font-medium text-gray-300">Banner Name</th>
                 <th className="px-6 py-4 text-left text-sm font-medium text-gray-300">Image</th>
                 <th className="px-6 py-4 text-left text-sm font-medium text-gray-300">Status</th>
                 <th className="px-6 py-4 text-left text-sm font-medium text-gray-300">Added Date</th>
@@ -363,7 +392,7 @@ const Posters = () => {
               ) : (
                 posters.map((poster) => (
                   <tr key={poster.id} className="border-b border-gray-700 hover:bg-gray-750">
-                    <td className="px-6 py-4 text-white">{poster.title}</td>
+                    <td className="px-6 py-4 text-white">{poster.bannerName}</td>
                     <td className="px-6 py-4">
                       {poster.image ? (
                         <img 
@@ -441,7 +470,7 @@ const Posters = () => {
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="text-lg font-medium text-white mb-2 break-words">
-                    {poster.title}
+                    {poster.bannerName}
                   </h3>
                   <div className="flex items-center justify-between">
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${
@@ -548,15 +577,15 @@ const Posters = () => {
                 {/* Poster Title */}
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Poster Title *
+                    Banner Name *
                   </label>
                   <input
                     type="text"
-                    name="title"
-                    value={formData.title}
+                    name="bannerName"
+                    value={formData.bannerName}
                     onChange={handleInputChange}
                     className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter poster title"
+                    placeholder="Enter banner name"
                     required
                   />
                 </div>
@@ -644,12 +673,13 @@ const Posters = () => {
                         )}
                         <div className="flex-1 min-w-0">
                           <h4 className="text-white font-medium text-sm truncate">{product.name}</h4>
+                          <p className="text-gray-400 text-xs">Product ID: {product.productid || product.productId || product.id}</p>
                           <p className="text-gray-400 text-xs">{product.category}</p>
                           <div className="flex items-center space-x-2 mt-1">
                             <span className="text-green-400 font-medium text-sm">₹{product.price}</span>
-                            {product.offerPrice && (
-                              <span className="text-orange-400 text-xs">₹{product.offerPrice}</span>
-                            )}
+                            {product.offerprice && (
+                        <span className="text-orange-400 text-xs">₹{product.offerprice}</span>
+                      )}
                           </div>
                         </div>
                       </div>
@@ -793,13 +823,13 @@ const Posters = () => {
                     Offer Price
                   </label>
                   <input
-                    type="number"
-                    name="offerPrice"
-                    value={productFormData.offerPrice}
-                    onChange={handleProductFormChange}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter offer price (optional)"
-                  />
+                      type="text"
+                      name="offerprice"
+                      value={productFormData.offerprice}
+                      onChange={handleProductFormChange}
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Enter offer price (e.g., 200, two hundred)"
+                    />
                 </div>
 
 

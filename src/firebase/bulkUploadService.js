@@ -396,7 +396,7 @@ class BulkUploadService {
       });
       
       // Also check some common collection names
-      const commonCollections = ['products', 'test_product', 'simple_test_product'];
+      const commonCollections = ['products'];
       commonCollections.forEach(name => knownCollections.add(name));
       
       let totalDeleted = 0;
