@@ -732,39 +732,42 @@ const Dashboard = () => {
         {/* Products Table */}
         <div className="bg-gray-800 rounded-lg overflow-hidden flex-1 flex flex-col min-h-0">
           <div className="overflow-auto flex-1">
-            <table className="w-full min-w-[600px]">
+            <table className="w-full min-w-[240px] sm:min-w-[300px]">
               <thead className="bg-gray-700">
                 <tr>
-                  <th className="px-3 md:px-6 py-3 md:py-4 text-left text-xs md:text-sm font-medium text-gray-300">Product Name</th>
-                  <th className="px-3 md:px-6 py-3 md:py-4 text-left text-xs md:text-sm font-medium text-gray-300 hidden sm:table-cell">Category</th>
-                  <th className="px-3 md:px-6 py-3 md:py-4 text-left text-xs md:text-sm font-medium text-gray-300 hidden md:table-cell">Sub Category</th>
-                  <th className="px-3 md:px-6 py-3 md:py-4 text-left text-xs md:text-sm font-medium text-gray-300">Price</th>
-                  <th className="px-3 md:px-6 py-3 md:py-4 text-left text-xs md:text-sm font-medium text-gray-300">Actions</th>
+                  <th className="px-2 md:px-3 py-1 md:py-1.5 text-left text-xs font-medium text-gray-300 w-1/4 sm:w-1/5">Product Name</th>
+                  <th className="px-2 md:px-3 py-1 md:py-1.5 text-left text-xs font-medium text-gray-300 hidden sm:table-cell w-1/12">Category</th>
+                 <th className="px-2 md:px-3 py-1 md:py-1.5 text-left text-xs font-medium text-gray-300 hidden md:table-cell w-2/12 whitespace-nowrap">
+  Sub Category
+</th>
+
+                  <th className="px-2 md:px-3 py-1 md:py-1.5 text-left text-xs font-medium text-gray-300 w-14">Price</th>
+                  <th className="px-2 md:px-3 py-1 md:py-1.5 text-left text-xs font-medium text-gray-300 w-10">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="5" className="px-3 md:px-6 py-8 md:py-12 text-center text-gray-400 text-sm">
+                    <td colSpan="5" className="px-2 md:px-3 py-2 md:py-4 text-center text-gray-400 text-xs">
                       Loading products...
                     </td>
                   </tr>
                 ) : products.length === 0 ? (
                   <tr>
-                    <td colSpan="5" className="px-3 md:px-6 py-8 md:py-12 text-center text-gray-400 text-sm">
+                    <td colSpan="5" className="px-2 md:px-3 py-2 md:py-4 text-center text-gray-400 text-xs">
                       No products available
                     </td>
                   </tr>
                 ) : (
                   products.map((product) => (
                     <tr key={product.id} className="border-t border-gray-700">
-                      <td className="px-3 md:px-6 py-3 md:py-4">
-                        <div className="flex items-center space-x-2 md:space-x-3">
+                      <td className="px-2 md:px-3 py-1 md:py-1.5">
+                        <div className="flex items-center space-x-0.5">
                           {(product.image || (product.images && product.images.length > 0)) ? (
                             <img 
                               src={product.image || product.images[0]} 
                               alt={product.name}
-                              className="w-8 h-8 md:w-10 md:h-10 rounded-lg object-cover flex-shrink-0"
+                              className="w-2 h-2 md:w-4 md:h-4 rounded object-cover flex-shrink-0"
                               onError={(e) => {
                                 console.log('Image failed to load:', product.image || product.images[0]);
                                 e.target.style.display = 'none';
@@ -772,35 +775,38 @@ const Dashboard = () => {
                               }}
                             />
                           ) : null}
-                          <div className="w-8 h-8 md:w-10 md:h-10 bg-gray-600 rounded-lg flex items-center justify-center flex-shrink-0" style={{display: (product.image || (product.images && product.images.length > 0)) ? 'none' : 'flex'}}>
-                            <Package size={14} className="text-gray-400 md:w-4 md:h-4" />
+                          <div className="w-2 h-2 md:w-4 md:h-4 bg-gray-600 rounded flex items-center justify-center flex-shrink-0" style={{display: (product.image || (product.images && product.images.length > 0)) ? 'none' : 'flex'}}>
+                            <Package size={4} className="text-gray-400 md:w-1 md:h-1" />
                           </div>
                           <div className="min-w-0 flex-1">
-                            <span className="text-white text-sm md:text-base block leading-tight break-words">{product.name}</span>
-                            <div className="sm:hidden text-xs text-gray-400 mt-1">
+                            <span className="text-white text-[10px] block leading-tight break-words truncate">
+                              {product.name.split(' ').slice(0, 1).join(' ')}
+                              {product.name.split(' ').length > 1 && '...'}
+                            </span>
+                            <div className="sm:hidden text-xs text-gray-400 mt-0">
                               {product.category} • ₹{product.price}
                             </div>
                           </div>
                         </div>
                       </td>
-                      <td className="px-3 md:px-6 py-3 md:py-4 text-gray-300 text-sm hidden sm:table-cell">{product.category}</td>
-                      <td className="px-3 md:px-6 py-3 md:py-4 text-gray-300 text-sm hidden md:table-cell">{product.subCategory}</td>
-                      <td className="px-3 md:px-6 py-3 md:py-4 text-gray-300 text-sm hidden sm:block sm:table-cell">₹{product.price}</td>
-                      <td className="px-3 md:px-6 py-3 md:py-4">
-                        <div className="flex items-center space-x-2">
+                      <td className="px-2 md:px-3 py-1 md:py-1.5 text-gray-300 text-[11px] leading-tight hidden sm:table-cell">{product.category}</td>
+                      <td className="px-2 md:px-3 py-1 md:py-1.5 text-gray-300 text-[11px] leading-tight hidden md:table-cell">{product.subCategory}</td>
+                      <td className="px-2 md:px-3 py-1 md:py-1.5 text-gray-300 text-xs hidden sm:block sm:table-cell">₹{product.price}</td>
+                      <td className="px-2 md:px-3 py-1 md:py-1.5">
+                        <div className="flex items-center space-x-0">
                           <button 
                             onClick={() => handleEdit(product)}
-                            className="text-blue-400 hover:text-blue-300 p-1"
+                            className="text-blue-400 hover:text-blue-300 p-0"
                             disabled={loading}
                           >
-                            <Edit size={14} className="md:w-4 md:h-4" />
+                            <Edit size={6} className="md:w-2 md:h-2" />
                           </button>
                           <button 
                             onClick={() => handleDelete(product.id)}
-                            className="text-red-400 hover:text-red-300 p-1"
+                            className="text-red-400 hover:text-red-300 p-0"
                             disabled={loading}
                           >
-                            <Trash2 size={14} className="md:w-4 md:h-4" />
+                            <Trash2 size={6} className="md:w-2 md:h-2" />
                           </button>
                         </div>
                       </td>
