@@ -732,81 +732,81 @@ const Dashboard = () => {
         {/* Products Table */}
         <div className="bg-gray-800 rounded-lg overflow-hidden flex-1 flex flex-col min-h-0">
           <div className="overflow-auto flex-1">
-            <table className="w-full min-w-[240px] sm:min-w-[300px]">
+            <table className="w-full min-w-[180px] sm:min-w-[220px]">
               <thead className="bg-gray-700">
                 <tr>
-                  <th className="px-2 md:px-3 py-1 md:py-1.5 text-left text-xs font-medium text-gray-300 w-1/4 sm:w-1/5">Product Name</th>
-                  <th className="px-2 md:px-3 py-1 md:py-1.5 text-left text-xs font-medium text-gray-300 hidden sm:table-cell w-1/12">Category</th>
-                 <th className="px-2 md:px-3 py-1 md:py-1.5 text-left text-xs font-medium text-gray-300 hidden md:table-cell w-2/12 whitespace-nowrap">
+                  <th className="px-1 md:px-2 py-1 text-left text-xs font-medium text-gray-300 w-2/5 sm:w-1/3">Product Name</th>
+                  <th className="px-1 md:px-2 py-1 text-left text-xs font-medium text-gray-300 hidden sm:table-cell w-1/6">Category</th>
+                 <th className="px-1 md:px-2 py-1 text-left text-xs font-medium text-gray-300 hidden md:table-cell w-1/6 whitespace-nowrap">
   Sub Category
 </th>
 
-                  <th className="px-2 md:px-3 py-1 md:py-1.5 text-left text-xs font-medium text-gray-300 w-14">Price</th>
-                  <th className="px-2 md:px-3 py-1 md:py-1.5 text-left text-xs font-medium text-gray-300 w-10">Actions</th>
+                  <th className="px-1 md:px-2 py-1 text-left text-xs font-medium text-gray-300 w-12">Price</th>
+                  <th className="px-1 md:px-2 py-1 text-left text-xs font-medium text-gray-300 w-8">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="5" className="px-2 md:px-3 py-2 md:py-4 text-center text-gray-400 text-xs">
-                      Loading products...
+                    <td className="px-1 md:px-2 py-1">
+                      <div className="flex items-center space-x-1">
+                        <div className="min-w-0 flex-1">
+                          <div className="h-2 bg-gray-600 rounded animate-pulse w-16 mb-1"></div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-1 md:px-2 py-1 hidden sm:table-cell">
+                      <div className="h-2 bg-gray-600 rounded animate-pulse w-12"></div>
+                    </td>
+                    <td className="px-1 md:px-2 py-1 hidden md:table-cell">
+                      <div className="h-2 bg-gray-600 rounded animate-pulse w-14"></div>
+                    </td>
+                    <td className="px-1 md:px-2 py-1 hidden sm:table-cell">
+                      <div className="h-2 bg-gray-600 rounded animate-pulse w-8"></div>
+                    </td>
+                    <td className="px-1 md:px-2 py-1">
+                      <div className="flex items-center space-x-0">
+                        <div className="w-3 h-3 bg-gray-600 rounded animate-pulse"></div>
+                        <div className="w-3 h-3 bg-gray-600 rounded animate-pulse"></div>
+                      </div>
                     </td>
                   </tr>
                 ) : products.length === 0 ? (
                   <tr>
-                    <td colSpan="5" className="px-2 md:px-3 py-2 md:py-4 text-center text-gray-400 text-xs">
+                    <td colSpan="5" className="px-1 md:px-2 py-1 text-center text-gray-400 text-[9px]">
                       No products available
                     </td>
                   </tr>
                 ) : (
                   products.map((product) => (
                     <tr key={product.id} className="border-t border-gray-700">
-                      <td className="px-2 md:px-3 py-1 md:py-1.5">
-                        <div className="flex items-center space-x-0.5">
-                          {(product.image || (product.images && product.images.length > 0)) ? (
-                            <img 
-                              src={product.image || product.images[0]} 
-                              alt={product.name}
-                              className="w-2 h-2 md:w-4 md:h-4 rounded object-cover flex-shrink-0"
-                              onError={(e) => {
-                                console.log('Image failed to load:', product.image || product.images[0]);
-                                e.target.style.display = 'none';
-                                e.target.nextSibling.style.display = 'flex';
-                              }}
-                            />
-                          ) : null}
-                          <div className="w-2 h-2 md:w-4 md:h-4 bg-gray-600 rounded flex items-center justify-center flex-shrink-0" style={{display: (product.image || (product.images && product.images.length > 0)) ? 'none' : 'flex'}}>
-                            <Package size={4} className="text-gray-400 md:w-1 md:h-1" />
-                          </div>
+                      <td className="px-1 md:px-2 py-1">
+                        <div className="flex items-center space-x-1">
                           <div className="min-w-0 flex-1">
-                            <span className="text-white text-[10px] block leading-tight break-words truncate">
-                              {product.name.split(' ').slice(0, 1).join(' ')}
-                              {product.name.split(' ').length > 1 && '...'}
+                            <span className="text-white text-[9px] block leading-tight break-words truncate font-medium">
+                              {product.name.length > 15 ? product.name.substring(0, 15) + '...' : product.name}
                             </span>
-                            <div className="sm:hidden text-xs text-gray-400 mt-0">
-                              {product.category} • ₹{product.price}
-                            </div>
                           </div>
                         </div>
                       </td>
-                      <td className="px-2 md:px-3 py-1 md:py-1.5 text-gray-300 text-[11px] leading-tight hidden sm:table-cell">{product.category}</td>
-                      <td className="px-2 md:px-3 py-1 md:py-1.5 text-gray-300 text-[11px] leading-tight hidden md:table-cell">{product.subCategory}</td>
-                      <td className="px-2 md:px-3 py-1 md:py-1.5 text-gray-300 text-xs hidden sm:block sm:table-cell">₹{product.price}</td>
-                      <td className="px-2 md:px-3 py-1 md:py-1.5">
+                      <td className="px-1 md:px-2 py-1 text-gray-300 text-[9px] leading-tight hidden sm:table-cell">{product.category.substring(0, 8)}{product.category.length > 8 && '...'}</td>
+                      <td className="px-1 md:px-2 py-1 text-gray-300 text-[9px] leading-tight hidden md:table-cell">{product.subCategory.substring(0, 10)}{product.subCategory.length > 10 && '...'}</td>
+                      <td className="px-1 md:px-2 py-1 text-gray-300 text-[9px] hidden sm:table-cell">₹{product.price}</td>
+                      <td className="px-1 md:px-2 py-1">
                         <div className="flex items-center space-x-0">
                           <button 
                             onClick={() => handleEdit(product)}
                             className="text-blue-400 hover:text-blue-300 p-0"
                             disabled={loading}
                           >
-                            <Edit size={6} className="md:w-2 md:h-2" />
+                            <Edit size={10} className="md:w-2 md:h-2" />
                           </button>
                           <button 
                             onClick={() => handleDelete(product.id)}
                             className="text-red-400 hover:text-red-300 p-0"
                             disabled={loading}
                           >
-                            <Trash2 size={6} className="md:w-2 md:h-2" />
+                            <Trash2 size={10} className="md:w-2 md:h-2" />
                           </button>
                         </div>
                       </td>
