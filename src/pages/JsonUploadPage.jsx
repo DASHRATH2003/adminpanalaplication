@@ -1,7 +1,170 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Upload, FileText, CheckCircle, AlertCircle, X, Eye } from 'lucide-react'
 import { collection, addDoc, writeBatch, doc, getDocs, deleteDoc } from 'firebase/firestore'
 import { db } from '../firebase/config'
+import * as XLSX from 'xlsx'
+
+// ---------- Config ---------- 
+const COLUMN_MAPPINGS = {
+  name: ["title", "name", "product name", "product", "product title"],
+  name_lower: ["title", "name", "product name", "product", "product title"],
+  description: ["description", "product description", "body (html)", "details"],
+  stock: ["stock", "quantity", "qty", "available stock"],
+  sku: ["sku", "variant sku", "baseSku"],
+  category: ["category", "product category", "Type"],
+  subcategory: ["subcategory", "sub category"],
+  brand: ["brand", "vendor"],
+  price: ["price", "mrp"],
+  offerPrice: ["offerprice", "msrp", "compare at price"],
+  image: [
+    "image1", "image 1", "img1", "image2", "image 2", "img2", 
+    "image3", "image4", "image5"
+  ],
+  size: ["size"]
+};
+
+const CORE_FIELDS = new Set([
+  "productId", "name", "name_lower", "description", "category", 
+  "subcategory", "baseSku", "brand", "price", "offerPrice", 
+  "stock", "timestamp", "images", "sellerId", "sizeVariants"
+]);
+
+// Flatten alias list
+const ALIASES = Object.values(COLUMN_MAPPINGS)
+  .flat()
+  .map((v) => v.toLowerCase().trim());
+
+// ---------- Helpers ----------
+function cleanHtml(text) {
+  if (!text) return "";
+  const temp = document.createElement("div");
+  temp.innerHTML = text;
+  return temp.textContent || temp.innerText || "";
+}
+
+function safeNumber(val) {
+  const num = parseFloat(val);
+  return isNaN(num) ? 0 : Math.floor(num);
+}
+
+function safeStr(val) {
+  if (val === undefined || val === null) return "";
+  const s = String(val).trim();
+  return s.toLowerCase() === "nan" ? "" : s;
+}
+
+function pickCol(possibleNames, columns) {
+  for (let name of possibleNames) {
+    for (let col of columns) {
+      if (col.trim().toLowerCase() === name.trim().toLowerCase()) return col;
+    }
+  }
+  return null;
+}
+
+function normalizeKeys(obj) {
+  if (Array.isArray(obj)) return obj.map(normalizeKeys);
+  if (obj && typeof obj === "object") {
+    const out = {};
+    for (let [k, v] of Object.entries(obj)) {
+      out[k.trim().toLowerCase().replace(/\s+/g, "")] = normalizeKeys(v);
+    }
+    return out;
+  }
+  return obj;
+}
+
+// ---------- Category Detection Logic ---------- 
+const SUBCATEGORY_KEYWORDS = {
+  clothing: [
+    "tops", "tshirt", "kurti", "dress", "lehenga", "gown", "frock", "jumpsuit", 
+    "outfit", "men shirt", "men t-shirt", "womens dress", "partywear", 
+    "casualwear", "formalwear"
+  ]
+}
+
+const CATEGORY_KEYWORDS = {
+  clothing: [
+    "clothing", "dress", "shirt", "shirts", "tshirt", "tshirts", "kurti", "tops", "blouse", 
+    "frock", "gown", "lehenga", "skirt", "trousers", "jeans", "pants", "shorts", "sweater", 
+    "hoodie", "jacket", "coat", "blazer", "cardigan", "saree", "salwar", "ethnic wear", 
+    "casual wear", "formal wear", "party wear", "nightdress", "jumper", "hooded jacket", 
+    "windbreaker", "tracksuit", "activewear", "yoga pants", "leggings", "sport shorts", 
+    "polo shirt", "men shirt", "men tshirt", "women shirt", "women dress", "fashion top", 
+    "blazer jacket", "evening gown", "cocktail dress", "maxi dress", "mini dress", 
+    "shirt dress", "summer dress", "winter dress", "party dress", "workout top", "crop top", 
+    "tank top", "long sleeve shirt", "short sleeve shirt", "tunic", "kaftan", "peplum top", 
+    "kimono", "bodysuit", "pajama set", "nightwear", "lingerie", "underwear", "sports bra", 
+    "swimwear", "bikini", "trousers suit", "linen shirt", "denim jacket", "leather jacket", 
+    "jean jacket", "corduroy pants", "culottes", "sweatshirt", "hoodie jacket", "poncho", 
+    "cape", "gilet", "waistcoat", "vest", "shirt jacket", "kimono jacket", "sarong", 
+    "sling dress", "robe", "athletic shirt", "sports shorts", "athletic leggings", 
+    "active leggings", "cycling shorts", "boardshorts", "hooded sweatshirt"
+  ],
+  mobile: [
+    "smartphone", 
+    "android phone", 
+    "iphone", 
+    "dual sim phone", 
+    "gaming phone"
+  ],
+  laptop: [
+    "gaming laptop", 
+    "macbook", 
+    "chromebook", 
+    "notebook", 
+    "ultrabook", 
+    "windows laptop"
+  ],
+  electronics: [
+    "electronics", "electronic device", "gadgets", "home electronics", "consumer electronics", 
+    "smart electronics", "television", "tv", "led tv", "oled tv", "lcd tv", "smart tv", 
+    "smartwatch", "tablet", "earphones", "headphones", "bluetooth speaker", "camera", "dslr", 
+    "mirrorless camera", "point and shoot", "security camera", "webcam", "drone", "projector", 
+    "home theater", "soundbar", "amplifier", "router", "modem", "smart home", "wifi device", 
+    "network device", "gaming console", "playstation", "xbox", "nintendo", "switch", "media player", 
+    "dvd player", "blu-ray player", "smart light", "smart plug", "fitness tracker", "air purifier", 
+    "robot vacuum", "home appliance", "microwave", "refrigerator", "washing machine", "dishwasher", 
+    "oven", "coffee maker", "blender", "mixer", "juicer", "fan", "heater", "cooler", "humidifier", 
+    "thermostat", "charger", "adapter", "power bank", "usb hub", "keyboard", "mouse", "printer", 
+    "scanner", "fax machine", "projector screen", "tv box", "set top box", "monitor", 
+    "gaming monitor", "monitor stand", "vr headset", "vr device", "earbud", "noise cancelling headphones", 
+    "wireless headphones", "wired headphones", "speaker system", "sound system", "home security", 
+    "alarm system", "electric toothbrush", "hair dryer", "hair straightener", "iron", "shaver"
+  ],
+  footwear: [
+    "sneakers", 
+    "boots", 
+    "formal shoes", 
+    "casual shoes", 
+    "running shoes", 
+    "sports shoes", 
+    "sandals", 
+    "slippers"
+  ],
+  jewellery: [
+    "necklace", 
+    "ring", 
+    "bracelet", 
+    "earring", 
+    "bangle", 
+    "pendant", 
+    "mangalsutra", 
+    "brooch", 
+    "jewellery set"
+  ],
+  home: [
+    "sofa", 
+    "table", 
+    "chair", 
+    "bed", 
+    "wardrobe", 
+    "painting", 
+    "wall frame", 
+    "photo frame", 
+    "kitchen items"
+  ]
+}
 
 const JsonBulkUpload = () => {
   const [uploadedFile, setUploadedFile] = useState(null)
@@ -10,6 +173,100 @@ const JsonBulkUpload = () => {
   const [isProcessing, setIsProcessing] = useState(false)
   const [message, setMessage] = useState('')
   const [uploadHistory, setUploadHistory] = useState([])
+
+  // ---------- CSV/Excel Processing Functions ----------
+  const processCSVExcelData = (data, sellerId = "") => {
+    const columns = Object.keys(data[0] || {});
+    const products = {};
+
+    for (let row of data) {
+      let productId = safeStr(row["Product ID"] || row["id"] || row["SKU"]);
+      if (!productId) continue;
+
+      const nameCol = pickCol(COLUMN_MAPPINGS.name, columns);
+      const descCol = pickCol(COLUMN_MAPPINGS.description, columns);
+      const skuCol = pickCol(COLUMN_MAPPINGS.sku, columns);
+      const stockCol = pickCol(COLUMN_MAPPINGS.stock, columns);
+      const priceCol = pickCol(COLUMN_MAPPINGS.price, columns);
+      const offerCol = pickCol(COLUMN_MAPPINGS.offerPrice, columns);
+      const sizeCol = pickCol(COLUMN_MAPPINGS.size, columns);
+      const brandCol = pickCol(COLUMN_MAPPINGS.brand, columns);
+
+      const name = nameCol ? safeStr(row[nameCol]) || "Untitled" : "Untitled";
+      const description = descCol ? cleanHtml(row[descCol]) : "";
+
+      // Detect category and subcategory
+      const category = detectCategory(name, description);
+      const subcategory = detectSubcategory(category, name, description);
+
+      const price = priceCol ? safeNumber(row[priceCol]) : 0;
+      const offerPrice = offerCol ? safeNumber(row[offerCol]) : price;
+      const stock = stockCol ? safeNumber(row[stockCol]) : 0;
+      const size = sizeCol ? safeStr(row[sizeCol]) : "";
+      const baseSku = skuCol ? safeStr(row[skuCol]) : "";
+
+      // Timestamp with unique milliseconds
+      const timestamp = Date.now() + Math.floor(Math.random() * 1000);
+
+      if (!products[productId]) {
+        // Collect images
+        const images = [];
+        columns.forEach((col) => {
+          if (col.toLowerCase().includes("image") || col.toLowerCase().includes("img")) {
+            const val = safeStr(row[col]);
+            if (val) images.push(val);
+          }
+        });
+
+        products[productId] = {
+          productId,
+          name,
+          name_lower: name.toLowerCase(),
+          description,
+          category,
+          subcategory,
+          baseSku,
+          brand: brandCol ? safeStr(row[brandCol]) : "",
+          price,
+          offerPrice,
+          stock: 0, // sum later
+          timestamp,
+          images,
+          sellerId: sellerId,
+          sizeVariants: [],
+        };
+      }
+
+      // Add variant
+      if (size) {
+        products[productId].sizeVariants.push({
+          size,
+          stock,
+          sku: baseSku,
+          price,
+        });
+      }
+
+      // Sum stock
+      products[productId].stock += stock;
+
+      // Add extra fields dynamically
+      columns.forEach((col) => {
+        const colClean = col.trim();
+        if (
+          !ALIASES.includes(colClean.toLowerCase()) &&
+          !CORE_FIELDS.has(colClean) &&
+          !colClean.toLowerCase().startsWith("image") &&
+          colClean.toLowerCase() !== "size"
+        ) {
+          const val = safeStr(row[colClean]);
+          if (val) products[productId][colClean] = val;
+        }
+      });
+    }
+
+    return Object.values(products).map(normalizeKeys);
+  };
 
   const sampleJsonStructure = {
     products: [
@@ -54,7 +311,11 @@ const JsonBulkUpload = () => {
 
   const handleFileUpload = (e) => {
     const file = e.target.files[0]
-    if (file && file.type === 'application/json') {
+    if (!file) return
+
+    const fileExtension = file.name.split('.').pop().toLowerCase()
+
+    if (fileExtension === 'json') {
       setUploadedFile(file)
       const reader = new FileReader()
       reader.onload = (event) => {
@@ -62,8 +323,56 @@ const JsonBulkUpload = () => {
         validateJson(event.target.result)
       }
       reader.readAsText(file)
+    } else if (['csv', 'xlsx', 'xls'].includes(fileExtension)) {
+      setUploadedFile(file)
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        try {
+          let processedData
+
+          if (fileExtension === 'csv') {
+            const csvData = event.target.result
+            const workbook = XLSX.read(csvData, { type: 'string' })
+            const sheetName = workbook.SheetNames[0]
+            const sheet = workbook.Sheets[sheetName]
+            processedData = XLSX.utils.sheet_to_json(sheet)
+          } else {
+            const data = new Uint8Array(event.target.result)
+            const workbook = XLSX.read(data, { type: 'array' })
+            const sheetName = workbook.SheetNames[0]
+            const sheet = workbook.Sheets[sheetName]
+            processedData = XLSX.utils.sheet_to_json(sheet)
+          }
+
+          const sellerIdValue = '' // default sellerId
+          const products = processCSVExcelData(processedData, sellerIdValue)
+          const jsonStr = JSON.stringify({ products })
+          setJsonData(jsonStr)
+          validateJson(jsonStr)
+        } catch (err) {
+          alert('Error processing file. Please check the file format.')
+        }
+      }
+
+      if (fileExtension === 'csv') {
+        reader.readAsText(file)
+      } else {
+        reader.readAsArrayBuffer(file)
+      }
     } else {
-      alert('Please upload a valid JSON file')
+      alert('Unsupported file format. Please upload JSON, CSV, or Excel files.')
+    }
+  }
+
+  const cancelUpload = () => {
+    setUploadedFile(null)
+    setJsonData('')
+    setValidationResults(null)
+    setMessage('')
+    // Reset file input
+    const fileInput = document.getElementById('file-upload')
+    if (fileInput) {
+      fileInput.value = ''
     }
   }
 
@@ -112,6 +421,20 @@ const JsonBulkUpload = () => {
         }
         // No field-specific validation - accept any data structure
       })
+
+      // Add category detection preview for first 5 products
+      if (products.length > 0) {
+        const previewProducts = products.slice(0, 5);
+        results.categoryPreview = previewProducts.map(product => {
+          const detected = detectCategory(product);
+          return {
+            name: product.name || product.title || product.productName || 'Unknown',
+            detectedCategory: detected.category,
+            detectedSubcategory: detected.subcategory,
+            confidence: detected.confidence
+          };
+        });
+      }
 
       // Always consider valid if we have at least one item
       if (products.length === 0) {
@@ -171,10 +494,20 @@ const JsonBulkUpload = () => {
         
         batchProducts.forEach((product) => {
           try {
-            // Save exactly what's in the JSON file - no modifications or additions
+            // Detect category based on product data
+            const detectedCategory = detectCategory(product);
+            
+            // Create enhanced product data with detected categories
             const productData = {
-              ...product
-              // Save only the data from JSON file - no extra fields
+              ...product,
+              // Add or override category fields
+              category: product.category || product.Category || detectedCategory.category,
+              subcategory: product.subcategory || product.subCategory || product.Subcategory || product.SubCategory || detectedCategory.subcategory,
+              categoryConfidence: detectedCategory.confidence,
+              categoryAutoDetected: !product.category && !product.Category,
+              // Add metadata
+              uploadedAt: serverTimestamp(),
+              source: 'json-upload'
             }
             
             const docRef = doc(collection(db, 'products'))
@@ -277,6 +610,191 @@ const JsonBulkUpload = () => {
     }
   }
 
+  // ---------- Category Detection Function ---------- 
+  const detectCategory = (product) => {
+    // Check multiple fields for category keywords
+    const searchableFields = [
+      product.name,
+      product.title,
+      product.productName,
+      product.description,
+      product.category,
+      product.subcategory,
+      product.subCategory,
+      product.type,
+      product.productType,
+      product.tags,
+      product.keywords
+    ].filter(Boolean).map(field => 
+      Array.isArray(field) ? field.join(' ') : String(field).toLowerCase()
+    ).join(' ');
+
+    // Check for clothing keywords
+    const clothingKeywords = CATEGORY_KEYWORDS.clothing;
+    const foundClothingKeywords = clothingKeywords.filter(keyword => 
+      searchableFields.includes(keyword.toLowerCase())
+    );
+
+    if (foundClothingKeywords.length > 0) {
+      return {
+        category: 'Clothing',
+        subcategory: foundClothingKeywords[0].charAt(0).toUpperCase() + foundClothingKeywords[0].slice(1),
+        confidence: Math.min(foundClothingKeywords.length * 0.2, 1.0)
+      };
+    }
+
+    // Check for mobile keywords
+    const mobileKeywords = CATEGORY_KEYWORDS.mobile;
+    const foundMobileKeywords = mobileKeywords.filter(keyword => 
+      searchableFields.includes(keyword.toLowerCase())
+    );
+
+    if (foundMobileKeywords.length > 0) {
+      return {
+        category: 'Mobile',
+        subcategory: foundMobileKeywords[0].charAt(0).toUpperCase() + foundMobileKeywords[0].slice(1),
+        confidence: Math.min(foundMobileKeywords.length * 0.2, 1.0)
+      };
+    }
+
+    // Check for laptop keywords
+    const laptopKeywords = CATEGORY_KEYWORDS.laptop;
+    const foundLaptopKeywords = laptopKeywords.filter(keyword => 
+      searchableFields.includes(keyword.toLowerCase())
+    );
+
+    if (foundLaptopKeywords.length > 0) {
+      return {
+        category: 'Laptop',
+        subcategory: foundLaptopKeywords[0].charAt(0).toUpperCase() + foundLaptopKeywords[0].slice(1),
+        confidence: Math.min(foundLaptopKeywords.length * 0.2, 1.0)
+      };
+    }
+
+    // Check for electronics keywords
+    const electronicsKeywords = CATEGORY_KEYWORDS.electronics;
+    const foundElectronicsKeywords = electronicsKeywords.filter(keyword => 
+      searchableFields.includes(keyword.toLowerCase())
+    );
+
+    if (foundElectronicsKeywords.length > 0) {
+      return {
+        category: 'Electronics',
+        subcategory: foundElectronicsKeywords[0].charAt(0).toUpperCase() + foundElectronicsKeywords[0].slice(1),
+        confidence: Math.min(foundElectronicsKeywords.length * 0.2, 1.0)
+      };
+    }
+
+    // Check for footwear keywords
+    const footwearKeywords = CATEGORY_KEYWORDS.footwear;
+    const foundFootwearKeywords = footwearKeywords.filter(keyword => 
+      searchableFields.includes(keyword.toLowerCase())
+    );
+
+    if (foundFootwearKeywords.length > 0) {
+      return {
+        category: 'Footwear',
+        subcategory: foundFootwearKeywords[0].charAt(0).toUpperCase() + foundFootwearKeywords[0].slice(1),
+        confidence: Math.min(foundFootwearKeywords.length * 0.2, 1.0)
+      };
+    }
+
+    // Check for jewellery keywords
+    const jewelleryKeywords = CATEGORY_KEYWORDS.jewellery;
+    const foundJewelleryKeywords = jewelleryKeywords.filter(keyword => 
+      searchableFields.includes(keyword.toLowerCase())
+    );
+
+    if (foundJewelleryKeywords.length > 0) {
+      return {
+        category: 'Jewellery',
+        subcategory: foundJewelleryKeywords[0].charAt(0).toUpperCase() + foundJewelleryKeywords[0].slice(1),
+        confidence: Math.min(foundJewelleryKeywords.length * 0.2, 1.0)
+      };
+    }
+
+    // Check for home keywords
+    const homeKeywords = CATEGORY_KEYWORDS.home;
+    const foundHomeKeywords = homeKeywords.filter(keyword => 
+      searchableFields.includes(keyword.toLowerCase())
+    );
+
+    if (foundHomeKeywords.length > 0) {
+      return {
+        category: 'Home',
+        subcategory: foundHomeKeywords[0].charAt(0).toUpperCase() + foundHomeKeywords[0].slice(1),
+        confidence: Math.min(foundHomeKeywords.length * 0.2, 1.0)
+      };
+    }
+
+    return {
+    category: 'Other',
+    subcategory: 'General',
+    confidence: 0.1
+  };
+}
+
+// ---------- Subcategory Detection Logic ----------
+function detectSubcategory(category, name = "", description = "") {
+  const text = (name + " " + description).toLowerCase();
+  
+  if (category === "mobile") {
+    if (text.includes("smartphone")) return "smartphone";
+    if (text.includes("feature phone")) return "feature phone";
+    return "mobile";
+  }
+  
+  if (category === "laptop") {
+    if (text.includes("gaming")) return "gaming laptop";
+    if (text.includes("ultrabook")) return "ultrabook";
+    return "laptop";
+  }
+  
+  if (category === "electronics") {
+    if (text.includes("tv")) return "tv";
+    if (text.includes("camera")) return "camera";
+    if (text.includes("headphone")) return "headphone";
+    if (text.includes("speaker")) return "speaker";
+    return "electronics";
+  }
+  
+  if (category === "footwear") {
+    if (text.includes("sneaker")) return "sneaker";
+    if (text.includes("boot")) return "boot";
+    if (text.includes("sandal")) return "sandal";
+    if (text.includes("shoe")) return "shoe";
+    return "footwear";
+  }
+  
+  if (category === "jewellery") {
+    if (text.includes("necklace")) return "necklace";
+    if (text.includes("earring")) return "earring";
+    if (text.includes("ring")) return "ring";
+    if (text.includes("bracelet")) return "bracelet";
+    if (text.includes("bangle")) return "bangle";
+    if (text.includes("pendant")) return "pendant";
+    return "jewellery";
+  }
+  
+  if (category === "home") {
+    if (text.includes("furniture")) return "furniture";
+    if (text.includes("decoration")) return "decoration";
+    if (text.includes("kitchen")) return "kitchen";
+    if (text.includes("bedroom")) return "bedroom";
+    if (text.includes("bathroom")) return "bathroom";
+    return "home";
+  }
+  
+  // Check clothing subcategories
+  for (const [subcat, keywords] of Object.entries(SUBCATEGORY_KEYWORDS.clothing)) {
+    if (keywords.some(keyword => text.includes(keyword))) {
+      return subcat;
+    }
+  }
+  
+  return category; // Default to category name if no specific subcategory found
+  }
+
   return (
     <div className="min-h-screen bg-gray-900 p-4 sm:p-6">
       {/* Header */}
@@ -345,16 +863,16 @@ const JsonBulkUpload = () => {
         
         <div className="border-2 border-dashed border-gray-600 rounded-lg p-6 sm:p-8 text-center">
           <Upload className="w-8 h-8 sm:w-12 sm:h-12 text-gray-400 mx-auto mb-4" />
-          <p className="text-gray-300 mb-2 text-sm sm:text-base">Drag and drop your JSON file here, or click to browse</p>
+          <p className="text-gray-300 mb-2 text-sm sm:text-base">Drag and drop your JSON, CSV, or Excel file here, or click to browse</p>
           <input
-            type="file"
-            accept=".json"
-            onChange={handleFileUpload}
-            className="hidden"
-            id="json-upload"
-          />
+          type="file"
+          accept=".json,.csv,.xlsx,.xls"
+          onChange={handleFileUpload}
+          className="hidden"
+          id="file-upload"
+        />
           <label
-            htmlFor="json-upload"
+              htmlFor="file-upload"
             className="bg-blue-600 text-white px-4 py-2 sm:px-6 sm:py-2 rounded-lg hover:bg-blue-700 cursor-pointer inline-block text-sm sm:text-base"
           >
             Choose File
@@ -376,8 +894,17 @@ const JsonBulkUpload = () => {
 
       {/* File Upload Section */}
       {uploadedFile && (
-        <div className="bg-gray-800 rounded-lg p-4 sm:p-6 mb-6">
-          <h3 className="text-base sm:text-lg font-semibold text-white mb-4 break-all">Uploaded File: {uploadedFile.name}</h3>
+        <div className="bg-gray-800 rounded-lg p-4 sm:p-6 mb-6 relative">
+          <div className="flex justify-between items-start mb-4">
+            <h3 className="text-base sm:text-lg font-semibold text-white break-all">Uploaded File: {uploadedFile.name}</h3>
+            <button
+              onClick={cancelUpload}
+              className="text-gray-400 hover:text-red-400 transition-colors duration-200 p-1"
+              title="Cancel upload"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
           
           {validationResults && (
             <div className="mb-4">
@@ -408,6 +935,20 @@ const JsonBulkUpload = () => {
                         <li key={index}>{warning}</li>
                       ))}
                     </ul>
+                  </div>
+                )}
+                
+                {validationResults.categoryPreview && validationResults.categoryPreview.length > 0 && (
+                  <div className="mt-4">
+                    <p className="text-blue-400 font-medium">Category Detection Preview (First 5 Products):</p>
+                    <div className="mt-2 space-y-1">
+                      {validationResults.categoryPreview.map((preview, index) => (
+                        <div key={index} className="text-blue-300 text-sm">
+                          • {preview.name} → {preview.detectedCategory} / {preview.detectedSubcategory} 
+                          (confidence: {Math.round(preview.confidence * 100)}%)
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
