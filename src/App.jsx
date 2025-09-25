@@ -18,6 +18,7 @@ import Posters from './pages/Posters';
 
 import Profile from './pages/Profile';
 import JsonUploadPage from './pages/JsonUploadPage';
+import PythonAutomation from './pages/PythonAutomation';
 
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -104,7 +105,7 @@ const App = () => {
                       <Route path="/coupons" element={<Coupons />} />
                       <Route path="/posters" element={<Posters />} />
                       <Route path="/json-upload" element={<JsonUploadPage />} />
-      
+                      <Route path="/python-automation" element={<PythonAutomation />} />
                       <Route path="/profile" element={<Profile />} />
                     </Routes>
                   </main>

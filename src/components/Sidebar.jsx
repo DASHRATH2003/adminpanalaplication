@@ -14,7 +14,9 @@ import {
   Users,
   UserCheck,
   Upload,
-  X
+  X,
+  Settings,
+  Code
 } from 'lucide-react';
 
 const Sidebar = ({ isOpen, onClose }) => {
@@ -31,8 +33,8 @@ const Sidebar = ({ isOpen, onClose }) => {
     { path: '/coupons', icon: Ticket, label: 'Coupons' },
     { path: '/posters', icon: Image, label: 'Posters' },
     { path: '/json-upload', icon: Upload, label: 'JSON Upload' },
+    { path: '/python-automation', icon: Code, label: 'Python Automation' },
     { path: '/profile', icon: User, label: 'Profile' },
-
   ];
 
   return (
