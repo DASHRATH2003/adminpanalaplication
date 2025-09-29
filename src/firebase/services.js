@@ -631,6 +631,8 @@ export const messageService = {
   // Send a new message
   async sendMessage(messageData) {
     try {
+      console.log('📤 Sending message:', messageData);
+      
       const message = {
         ...messageData,
         timestamp: serverTimestamp(),
@@ -638,6 +640,7 @@ export const messageService = {
       };
       
       const docRef = await addDoc(collection(db, 'messages'), message);
+      console.log('✅ Message sent with ID:', docRef.id);
       
       // Update conversation with last message
       await this.updateConversation(messageData.conversationId, {
@@ -646,9 +649,10 @@ export const messageService = {
         lastMessageSender: messageData.senderId
       });
       
+      console.log('✅ Conversation updated for ID:', messageData.conversationId);
       return docRef.id;
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('❌ Error sending message:', error);
       throw error;
     }
   },
@@ -682,6 +686,7 @@ export const messageService = {
 
   // Listen to real-time messages
   subscribeToMessages(conversationId, callback) {
+    console.log('📡 Setting up message subscription for conversation:', conversationId);
     const q = query(
       collection(db, 'messages'),
       where('conversationId', '==', conversationId),
@@ -689,11 +694,16 @@ export const messageService = {
     );
     
     return onSnapshot(q, (querySnapshot) => {
-      const messages = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      console.log('📨 Message snapshot received:', querySnapshot.size, 'messages');
+      const messages = querySnapshot.docs.map(doc => {
+        const messageData = { id: doc.id, ...doc.data() };
+        console.log('💬 Message data:', messageData);
+        return messageData;
+      });
+      console.log('📋 All messages for conversation:', messages);
       callback(messages);
+    }, (error) => {
+      console.error('❌ Error in message subscription:', error);
     });
   },
 

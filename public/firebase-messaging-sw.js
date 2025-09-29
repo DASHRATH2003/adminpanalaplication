@@ -24,7 +24,7 @@ const messaging = firebase.messaging();
 
 // Handle background messages
 messaging.onBackgroundMessage((payload) => {
-  console.log('Background message received:', payload);
+  console.log('📨 Background message received:', payload);
   
   const notificationTitle = payload.notification?.title || 'Sadhana Cart Admin';
   const notificationOptions = {
@@ -42,10 +42,14 @@ messaging.onBackgroundMessage((payload) => {
         action: 'close',
         title: 'Close'
       }
-    ]
+    ],
+    requireInteraction: true,
+    renotify: true,
+    silent: false
   };
 
   // Show notification
+  console.log('🎯 Showing notification:', notificationTitle, notificationOptions);
   self.registration.showNotification(notificationTitle, notificationOptions);
 });
 

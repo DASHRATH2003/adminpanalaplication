@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { RefreshCw, ChevronDown, User, CreditCard, Calendar, Edit, Trash2, Package, Plus, X, Save } from 'lucide-react';
+import { RefreshCw, ChevronDown, User, CreditCard, Calendar, Edit, Trash2, Package, Plus, X, Save, Eye } from 'lucide-react';
 import { orderService } from '../firebase/services';
 
 const Orders = () => {
@@ -9,6 +9,8 @@ const Orders = () => {
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [showModal, setShowModal] = useState(false);
   const [editingOrder, setEditingOrder] = useState(null);
+  const [viewingOrder, setViewingOrder] = useState(null);
+  const [showViewModal, setShowViewModal] = useState(false);
   const [orderStats, setOrderStats] = useState({
     all: 0,
     pending: 0,
@@ -57,6 +59,19 @@ const Orders = () => {
       
       console.log('Orders fetched successfully:', fetchedOrders.length);
       console.log('Sample order structure:', fetchedOrders.length > 0 ? fetchedOrders[0] : 'No orders');
+      
+      // Log date information for debugging
+      if (fetchedOrders.length > 0) {
+        fetchedOrders.slice(0, 3).forEach((order, index) => {
+          console.log(`Order ${index + 1} date info:`, {
+            createdAt: order.createdAt,
+            createdAtType: typeof order.createdAt,
+            createdAtConstructor: order.createdAt?.constructor?.name,
+            hasSeconds: !!order.createdAt?.seconds,
+            formattedDate: formatDate(order.createdAt)
+          });
+        });
+      }
       
       // Log status information for debugging
       fetchedOrders.forEach((order, index) => {
@@ -147,6 +162,11 @@ const Orders = () => {
       customerId: order.customerId || null
     });
     setShowModal(true);
+  };
+
+  const handleView = (order) => {
+    setViewingOrder(order);
+    setShowViewModal(true);
   };
 
   const handleDelete = async (orderId, customerId = null) => {
@@ -300,11 +320,34 @@ const Orders = () => {
 
   const formatDate = (date) => {
     if (!date) return 'N/A';
-    return new Date(date).toLocaleDateString('en-IN', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
+    
+    try {
+      // Handle Firebase Timestamp objects
+      if (date && typeof date === 'object' && date.seconds) {
+        return new Date(date.seconds * 1000).toLocaleDateString('en-IN', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric'
+        });
+      }
+      
+      // Handle string dates
+      const dateObj = new Date(date);
+      
+      // Check if the date is valid
+      if (isNaN(dateObj.getTime())) {
+        return 'Invalid Date';
+      }
+      
+      return dateObj.toLocaleDateString('en-IN', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+    } catch (error) {
+      console.error('Error formatting date:', date, error);
+      return 'Invalid Date';
+    }
   };
 
   const formatCurrency = (amount) => {
@@ -392,31 +435,32 @@ const Orders = () => {
     return 0;
   };
 
-  // Debug display component to show calculation details
-  const DebugOrderInfo = ({ order }) => {
-    const calculatedTotal = calculateOrderTotal(order);
-    return (
-      <div style={{ fontSize: '10px', color: '#666', marginTop: '5px', border: '1px dashed #ccc', padding: '2px' }}>
-        <div>Debug: Order {order.id}</div>
-        <div>STATUS: {order.status} | orderStatus: {order.orderStatus || 'none'}</div>
-        <div>totalAmount: {order.totalAmount || 'none'}</div>
-        <div>amount: {order.amount || 'none'}</div>
-        <div>Calculated total: {calculatedTotal}</div>
-        <div>Products count: {order.products?.length || 0}</div>
-        {order.products?.map((product, index) => (
-          <div key={index} style={{ marginLeft: '10px' }}>
-            Product {index}: name="{product.name}" price={product.price} qty={product.quantity}
-          </div>
-        ))}
-        <div>Items count: {order.items?.length || 0}</div>
-        {order.items?.map((item, index) => (
-          <div key={index} style={{ marginLeft: '10px' }}>
-            Item {index}: name="{item.name}" price={item.price} qty={item.quantity}
-          </div>
-        ))}
-      </div>
-    );
+  // Extract SKUs from order products/items
+  const extractOrderSKUs = (order) => {
+    const skus = [];
+    
+    // Check products array first
+    if (order.products && Array.isArray(order.products)) {
+      order.products.forEach(product => {
+        if (product.sku) {
+          skus.push(product.sku);
+        }
+      });
+    }
+    
+    // Check items array (legacy)
+    if (order.items && Array.isArray(order.items)) {
+      order.items.forEach(item => {
+        if (item.sku) {
+          skus.push(item.sku);
+        }
+      });
+    }
+    
+    return skus.length > 0 ? skus.join(', ') : 'N/A';
   };
+
+
 
   return (
     <div className="p-4 md:p-6 bg-gray-900 min-h-screen">
@@ -537,6 +581,7 @@ const Orders = () => {
                 <thead className="bg-gray-700">
                   <tr>
                     <th className="px-6 py-4 text-left text-sm font-medium text-gray-300">Customer Name</th>
+                    <th className="px-6 py-4 text-left text-sm font-medium text-gray-300">SKU</th>
                     <th className="px-6 py-4 text-left text-sm font-medium text-gray-300">Order Amount</th>
                     <th className="px-6 py-4 text-left text-sm font-medium text-gray-300">Payment Method/Status</th>
                     <th className="px-6 py-4 text-left text-sm font-medium text-gray-300">Status</th>
@@ -558,8 +603,10 @@ const Orders = () => {
                       <tr key={order.id} className="border-t border-gray-700 hover:bg-gray-750">
                         <td className="px-6 py-4 text-white">{order.customerName}</td>
                         <td className="px-6 py-4 text-white">
+                          {extractOrderSKUs(order)}
+                        </td>
+                        <td className="px-6 py-4 text-white">
                           {formatCurrency(calculateOrderTotal(order))}
-                          <DebugOrderInfo order={order} />
                         </td>
                         <td className="px-6 py-4">
                           <div className="space-y-1">
@@ -615,6 +662,12 @@ const Orders = () => {
                               )}
                             </div>
                             <button 
+                              onClick={() => handleView(order)}
+                              className="text-green-400 hover:text-green-300"
+                            >
+                              <Eye size={16} />
+                            </button>
+                            <button 
                               onClick={() => handleEdit(order)}
                               className="text-blue-400 hover:text-blue-300"
                             >
@@ -666,15 +719,23 @@ const Orders = () => {
                 </div>
                 <div className="text-right">
                   <div className="text-sm font-semibold text-white">
-                      {formatCurrency(calculateOrderTotal(order))}
-                      <DebugOrderInfo order={order} />
-                    </div>
+                    {formatCurrency(calculateOrderTotal(order))}
+                  </div>
                   <div className="text-xs text-gray-400">{formatDate(order.createdAt)}</div>
                 </div>
               </div>
 
               {/* Order Details */}
               <div className="space-y-2 mb-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center text-sm text-gray-300">
+                    <Package className="h-4 w-4 mr-2 text-gray-400" />
+                    <span>SKU</span>
+                  </div>
+                  <span className="text-sm text-gray-300">
+                    {extractOrderSKUs(order)}
+                  </span>
+                </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center text-sm text-gray-300">
                     <CreditCard className="h-4 w-4 mr-2 text-gray-400" />
@@ -741,6 +802,13 @@ const Orders = () => {
                   </button>
                 )}
                 <div className="flex gap-2">
+                  <button 
+                    onClick={() => handleView(order)}
+                    className="flex-1 bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded text-sm font-medium transition-colors flex items-center justify-center space-x-2"
+                  >
+                    <Eye size={16} />
+                    <span>View</span>
+                  </button>
                   <button 
                     onClick={() => handleEdit(order)}
                     className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-sm font-medium transition-colors flex items-center justify-center space-x-2"
@@ -895,6 +963,146 @@ const Orders = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* View Order Modal */}
+      {showViewModal && viewingOrder && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-2xl font-bold text-white">
+                Order Details
+              </h3>
+              <button
+                onClick={() => setShowViewModal(false)}
+                className="text-gray-400 hover:text-white"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              {/* Customer Information */}
+              <div className="bg-gray-700 rounded-lg p-4">
+                <h4 className="text-lg font-semibold text-white mb-3">Customer Information</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-400">Name</p>
+                    <p className="text-xl text-white font-medium">{viewingOrder.customerName}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-400">Order ID</p>
+                    <p className="text-xl text-white font-medium">#{viewingOrder.id}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-400">Email</p>
+                    <p className="text-lg text-white">{viewingOrder.customerEmail || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-400">Phone</p>
+                    <p className="text-lg text-white">{viewingOrder.customerPhone || 'N/A'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Order Details */}
+              <div className="bg-gray-700 rounded-lg p-4">
+                <h4 className="text-lg font-semibold text-white mb-3">Order Details</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-400">Total Amount</p>
+                    <p className="text-2xl text-green-400 font-bold">{formatCurrency(calculateOrderTotal(viewingOrder))}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-400">Order Date</p>
+                    <p className="text-lg text-white">{formatDate(viewingOrder.createdAt)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-400">Payment Method</p>
+                    <p className="text-lg text-white">{viewingOrder.paymentMethod || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-400">SKU</p>
+                    <p className="text-lg text-white">{extractOrderSKUs(viewingOrder)}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Status Information */}
+              <div className="bg-gray-700 rounded-lg p-4">
+                <h4 className="text-lg font-semibold text-white mb-3">Status</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-400">Order Status</p>
+                    <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${
+                      viewingOrder.status === 'delivered' 
+                        ? 'bg-green-100 text-green-800'
+                        : viewingOrder.status === 'shipped'
+                        ? 'bg-blue-100 text-blue-800'
+                        : viewingOrder.status === 'processing'
+                        ? 'bg-yellow-100 text-yellow-800'
+                        : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {viewingOrder.status}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-400">Payment Status</p>
+                    <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${
+                      viewingOrder.paymentStatus === 'paid' 
+                        ? 'bg-green-100 text-green-800'
+                        : viewingOrder.paymentStatus === 'pending'
+                        ? 'bg-yellow-100 text-yellow-800'
+                        : 'bg-red-100 text-red-800'
+                    }`}>
+                      {viewingOrder.paymentStatus}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Items Information */}
+              {(viewingOrder.items || viewingOrder.products) && (
+                <div className="bg-gray-700 rounded-lg p-4">
+                  <h4 className="text-lg font-semibold text-white mb-3">Items</h4>
+                  <div className="space-y-3">
+                    {(viewingOrder.items || viewingOrder.products || []).map((item, index) => (
+                      <div key={index} className="flex justify-between items-center bg-gray-600 rounded p-3">
+                        <div>
+                          <p className="text-lg text-white font-medium">{item.name || item.productName || 'Unknown Product'}</p>
+                          <p className="text-sm text-gray-400">Quantity: {item.quantity || 1}</p>
+                          {item.sku && <p className="text-sm text-gray-400">SKU: {item.sku}</p>}
+                        </div>
+                        <div className="text-right">
+                          <p className="text-lg text-white font-semibold">{formatCurrency(item.price || 0)}</p>
+                          <p className="text-sm text-gray-400">Subtotal: {formatCurrency((item.price || 0) * (item.quantity || 1))}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Shipping Address */}
+              {viewingOrder.shippingAddress && (
+                <div className="bg-gray-700 rounded-lg p-4">
+                  <h4 className="text-lg font-semibold text-white mb-3">Shipping Address</h4>
+                  <p className="text-lg text-white">{viewingOrder.shippingAddress}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Close Button */}
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={() => setShowViewModal(false)}
+                className="px-6 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
