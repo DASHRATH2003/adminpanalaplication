@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, RefreshCw, MoreVertical, Package, AlertTriangle, Clock, Archive, Truck, CheckCircle, X, Camera, Edit, Trash2, Upload } from 'lucide-react';
-import { productService, categoryService, subCategoryService } from '../firebase/services';
+import { productService, categoryService, subCategoryService, orderService } from '../firebase/services';
 import BulkUpload from '../components/BulkUpload';
 import { bulkUploadProducts } from '../firebase/bulkUploadService';
 
@@ -30,6 +30,14 @@ const Dashboard = () => {
   const [subCategories, setSubCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAttributeDropdown, setShowAttributeDropdown] = useState(false);
+  const [orderStats, setOrderStats] = useState({
+    all: 0,
+    pending: 0,
+    processing: 0,
+    shipped: 0,
+    delivered: 0,
+    cancelled: 0
+  });
   
   // Category-specific attributes mapping
   const categoryAttributes = {
@@ -108,10 +116,11 @@ const Dashboard = () => {
       setLoading(true);
       console.log('Fetching data from Firebase...');
       
-      const [productsData, categoriesData, subCategoriesData] = await Promise.all([
+      const [productsData, categoriesData, subCategoriesData, ordersData] = await Promise.all([
         productService.getAll(),
         categoryService.getAll(),
-        subCategoryService.getAll()
+        subCategoryService.getAll(),
+        orderService.getAll()
       ]);
       
       console.log('Products data:', productsData);
@@ -176,6 +185,22 @@ const Dashboard = () => {
       });
       
       console.log('Products with mapped names:', productsWithNames);
+      
+      // Calculate order statistics
+      const calculateOrderStats = () => {
+        const stats = {
+          all: ordersData.length,
+          pending: ordersData.filter(order => order.orderStatus === 'pending').length,
+          processing: ordersData.filter(order => order.orderStatus === 'processing').length,
+          shipped: ordersData.filter(order => order.orderStatus === 'shipped').length,
+          delivered: ordersData.filter(order => order.orderStatus === 'delivered').length,
+          cancelled: ordersData.filter(order => order.orderStatus === 'cancelled').length
+        };
+        setOrderStats(stats);
+        console.log('Order statistics calculated:', stats);
+      };
+      
+      calculateOrderStats();
       
       setProducts(productsWithNames);
       setCategories(categoriesData);
@@ -667,13 +692,13 @@ const Dashboard = () => {
     }
   ];
 
-  const orderStats = [
-    { label: 'All Orders', count: '0 Order', color: 'text-purple-600' },
-    { label: 'Pending Orders', count: '0 Order', color: 'text-yellow-600' },
-    { label: 'Processed Orders', count: '0 Order', color: 'text-blue-600' },
-    { label: 'Cancelled Orders', count: '0 Order', color: 'text-red-600' },
-    { label: 'Shipped Orders', count: '0 Order', color: 'text-indigo-600' },
-    { label: 'Delivered Orders', count: '0 Order', color: 'text-green-600' }
+  const getOrderStatsForDisplay = () => [
+    { label: 'All Orders', count: `${orderStats.all} Order${orderStats.all !== 1 ? 's' : ''}`, color: 'text-purple-600' },
+    { label: 'Pending Orders', count: `${orderStats.pending} Order${orderStats.pending !== 1 ? 's' : ''}`, color: 'text-yellow-600' },
+    { label: 'Processed Orders', count: `${orderStats.processing} Order${orderStats.processing !== 1 ? 's' : ''}`, color: 'text-blue-600' },
+    { label: 'Cancelled Orders', count: `${orderStats.cancelled} Order${orderStats.cancelled !== 1 ? 's' : ''}`, color: 'text-red-600' },
+    { label: 'Shipped Orders', count: `${orderStats.shipped} Order${orderStats.shipped !== 1 ? 's' : ''}`, color: 'text-indigo-600' },
+    { label: 'Delivered Orders', count: `${orderStats.delivered} Order${orderStats.delivered !== 1 ? 's' : ''}`, color: 'text-green-600' }
   ];
 
   return (
@@ -823,12 +848,12 @@ const Dashboard = () => {
       <div className="w-full lg:w-80 flex-shrink-0 bg-gray-800 rounded-lg p-4 md:p-6">
         <div className="flex items-center justify-between mb-4 md:mb-6">
           <h2 className="text-lg md:text-xl font-semibold text-white">Orders Details</h2>
-          <div className="text-2xl md:text-3xl font-bold text-white">0</div>
+          <div className="text-2xl md:text-3xl font-bold text-white">{orderStats.all}</div>
         </div>
 
         {/* Order Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3 md:gap-4">
-          {orderStats.map((stat, index) => {
+          {getOrderStatsForDisplay().map((stat, index) => {
             const icons = [Package, Clock, Truck, AlertTriangle, Truck, CheckCircle];
             const Icon = icons[index];
             return (

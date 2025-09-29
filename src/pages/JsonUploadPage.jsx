@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
-import { Upload, FileText, CheckCircle, AlertCircle, X, Eye } from 'lucide-react'
-import { collection, addDoc, writeBatch, doc, getDocs, deleteDoc } from 'firebase/firestore'
+import { Upload, FileText, CheckCircle, AlertCircle, X, Eye, XCircle } from 'lucide-react'
+import { collection, addDoc, writeBatch, doc, getDocs, deleteDoc, serverTimestamp, query, limit } from 'firebase/firestore'
 import { db } from '../firebase/config'
 import * as XLSX from 'xlsx'
 
@@ -173,6 +173,7 @@ const JsonBulkUpload = () => {
   const [isProcessing, setIsProcessing] = useState(false)
   const [message, setMessage] = useState('')
   const [uploadHistory, setUploadHistory] = useState([])
+  const [existingProducts, setExistingProducts] = useState([])
 
   // ---------- CSV/Excel Processing Functions ----------
   const processCSVExcelData = (data, sellerId = "") => {
@@ -313,14 +314,25 @@ const JsonBulkUpload = () => {
     const file = e.target.files[0]
     if (!file) return
 
+    console.log('File upload started:', file.name)
     const fileExtension = file.name.split('.').pop().toLowerCase()
 
     if (fileExtension === 'json') {
       setUploadedFile(file)
       const reader = new FileReader()
       reader.onload = (event) => {
-        setJsonData(event.target.result)
-        validateJson(event.target.result)
+        try {
+          console.log('JSON file read successfully, size:', event.target.result.length)
+          setJsonData(event.target.result)
+          validateJson(event.target.result)
+        } catch (err) {
+          console.error('Error reading JSON file:', err)
+          alert('Error reading JSON file: ' + err.message)
+        }
+      }
+      reader.onerror = (error) => {
+        console.error('FileReader error:', error)
+        alert('Error reading file: ' + error.message)
       }
       reader.readAsText(file)
     } else if (['csv', 'xlsx', 'xls'].includes(fileExtension)) {
@@ -350,8 +362,13 @@ const JsonBulkUpload = () => {
           setJsonData(jsonStr)
           validateJson(jsonStr)
         } catch (err) {
-          alert('Error processing file. Please check the file format.')
+          console.error('Error processing Excel/CSV file:', err)
+          alert('Error processing file. Please check the file format: ' + err.message)
         }
+      }
+      reader.onerror = (error) => {
+        console.error('FileReader error:', error)
+        alert('Error reading file: ' + error.message)
       }
 
       if (fileExtension === 'csv') {
@@ -378,7 +395,10 @@ const JsonBulkUpload = () => {
 
   const validateJson = (jsonString) => {
     try {
+      console.log('Starting JSON validation...')
       const data = JSON.parse(jsonString)
+      console.log('JSON parsed successfully')
+      
       const results = {
         isValid: true,
         errors: [],
@@ -386,64 +406,101 @@ const JsonBulkUpload = () => {
         recordCount: 0
       }
 
-      // Extract products from any format
-      let products = []
+      // Accept ANY JSON format - convert everything to documents
+      let documents = []
       
       if (Array.isArray(data)) {
-        // Direct array format
-        products = data
-      } else if (data.products && Array.isArray(data.products)) {
-        // Object with products property
-        products = data.products
-      } else if (data.data && Array.isArray(data.data)) {
-        // Object with data property
-        products = data.data
-      } else if (data.items && Array.isArray(data.items)) {
-        // Object with items property
-        products = data.items
+        // Direct array format - each item becomes a document
+        documents = data.map((item, index) => ({
+          id: `item_${index}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          data: item,
+          type: 'array_item',
+          originalIndex: index
+        }))
+        console.log(`Detected array format with ${data.length} items`)
       } else if (typeof data === 'object' && data !== null) {
-        // Single product object
-        products = [data]
+        // Object format - try to extract arrays or upload as single document
+        if (data.products && Array.isArray(data.products)) {
+          documents = data.products.map((item, index) => ({
+            id: `product_${index}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            data: item,
+            type: 'product',
+            originalIndex: index
+          }))
+          console.log(`Detected {products: []} format with ${data.products.length} items`)
+        } else if (data.items && Array.isArray(data.items)) {
+          documents = data.items.map((item, index) => ({
+            id: `item_${index}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            data: item,
+            type: 'item',
+            originalIndex: index
+          }))
+          console.log(`Detected {items: []} format with ${data.items.length} items`)
+        } else if (data.data && Array.isArray(data.data)) {
+          documents = data.data.map((item, index) => ({
+            id: `data_${index}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            data: item,
+            type: 'data_item',
+            originalIndex: index
+          }))
+          console.log(`Detected {data: []} format with ${data.data.length} items`)
+        } else {
+          // Upload the entire object as a single document
+          const keys = Object.keys(data)
+          documents = [{
+            id: `object_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            data: data,
+            type: 'object',
+            keys: keys
+          }]
+          console.log(`Detected single object format with ${keys.length} keys`)
+        }
       } else {
-        results.errors.push('JSON must contain product data in any of these formats: array, {products: []}, {data: []}, {items: []}, or single object')
-        results.isValid = false
-        setValidationResults(results)
-        return
+        // Primitive values (string, number, boolean) - upload as single document
+        documents = [{
+          id: `value_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          data: data,
+          type: 'primitive',
+          valueType: typeof data
+        }]
+        console.log(`Detected primitive value: ${typeof data}`)
       }
 
-      results.recordCount = products.length
+      results.recordCount = documents.length
+      console.log(`Found ${documents.length} documents to upload`)
       
-      products.forEach((product, index) => {
-        // Very flexible validation - accept any object
-        if (typeof product !== 'object' || product === null) {
-          results.errors.push(`Item ${index + 1}: Must be an object`)
-          return
-        }
-        // No field-specific validation - accept any data structure
+      documents.forEach((doc, index) => {
+        // Accept any data - no validation required
+        console.log(`Document ${index + 1}: Type=${doc.type}, ID=${doc.id}`)
       })
 
-      // Add category detection preview for first 5 products
-      if (products.length > 0) {
-        const previewProducts = products.slice(0, 5);
-        results.categoryPreview = previewProducts.map(product => {
-          const detected = detectCategory(product);
+      // Add category detection preview for first 5 documents (if they contain product-like data)
+      const productLikeDocuments = documents.filter(doc => 
+        doc.type === 'product' || doc.type === 'item' || doc.type === 'data_item' || doc.type === 'array_item'
+      ).slice(0, 5)
+      
+      if (productLikeDocuments.length > 0) {
+        results.categoryPreview = productLikeDocuments.map(doc => {
+          const detected = detectCategory(doc.data)
           return {
-            name: product.name || product.title || product.productName || 'Unknown',
+            name: doc.data.name || doc.data.title || doc.data.productName || 'Unknown',
             detectedCategory: detected.category,
             detectedSubcategory: detected.subcategory,
             confidence: detected.confidence
-          };
-        });
+          }
+        })
       }
 
-      // Always consider valid if we have at least one item
-      if (products.length === 0) {
-        results.errors.push('No products found in the JSON data')
+      // Always valid if we have at least one document
+      if (documents.length === 0) {
+        results.errors.push('No documents found in the JSON data')
         results.isValid = false
       }
 
       setValidationResults(results)
+      console.log('Validation completed:', results)
     } catch (error) {
+      console.error('JSON validation error:', error)
       setValidationResults({
         isValid: false,
         errors: [`Invalid JSON format: ${error.message}`],
@@ -463,64 +520,216 @@ const JsonBulkUpload = () => {
     setMessage('')
     
     try {
-      const data = JSON.parse(jsonData)
+      console.log('Starting upload process...')
+      alert('Upload process started - check console for details')
       
-      // Extract products from any format (same logic as validation)
-      let products = []
-      if (Array.isArray(data)) {
-        products = data
-      } else if (data.products && Array.isArray(data.products)) {
-        products = data.products
-      } else if (data.data && Array.isArray(data.data)) {
-        products = data.data
-      } else if (data.items && Array.isArray(data.items)) {
-        products = data.items
-      } else if (typeof data === 'object' && data !== null) {
-        products = [data]
+      // Test Firestore connection first
+      try {
+        const testCollection = collection(db, 'products')
+        console.log('Firestore connection test - collection created:', testCollection.path)
+        console.log('Firebase project ID:', db.app.options.projectId)
+        
+        // Test if we can read from products collection (checks Firestore rules)
+        try {
+          const testQuery = query(testCollection, limit(1))
+          const testSnapshot = await getDocs(testQuery)
+          console.log('Firestore read test successful, found products:', testSnapshot.size)
+        } catch (readError) {
+          console.error('Firestore read test failed - possible rules issue:', readError)
+          console.error('Read error details:', {
+            message: readError.message,
+            code: readError.code,
+            name: readError.name
+          })
+        }
+      } catch (firestoreError) {
+        console.error('Firestore connection error:', firestoreError)
+        console.error('Firestore error details:', {
+          message: firestoreError.message,
+          code: firestoreError.code,
+          name: firestoreError.name,
+          stack: firestoreError.stack
+        })
+        setMessage(`Firestore connection error: ${firestoreError.message}. Please check your Firebase configuration.`)
+        setIsProcessing(false)
+        return
       }
       
-      // No field processing - save data as-is
+      const data = JSON.parse(jsonData)
+      console.log('JSON data parsed successfully')
+      
+      // Convert ANY JSON data to upload format - treat everything as documents
+      let documents = []
+      
+      if (Array.isArray(data)) {
+        // If it's an array, upload each item as a document
+        documents = data.map((item, index) => ({
+          id: `item_${index}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          data: item,
+          type: 'array_item',
+          originalIndex: index
+        }))
+      } else if (typeof data === 'object' && data !== null) {
+        // If it's an object, convert to array of key-value pairs or upload as single document
+        const keys = Object.keys(data)
+        if (keys.length > 0) {
+          // Try to extract arrays from common object structures
+          if (data.products && Array.isArray(data.products)) {
+            documents = data.products.map((item, index) => ({
+              id: `product_${index}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+              data: item,
+              type: 'product',
+              originalIndex: index
+            }))
+          } else if (data.items && Array.isArray(data.items)) {
+            documents = data.items.map((item, index) => ({
+              id: `item_${index}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+              data: item,
+              type: 'item',
+              originalIndex: index
+            }))
+          } else if (data.data && Array.isArray(data.data)) {
+            documents = data.data.map((item, index) => ({
+              id: `data_${index}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+              data: item,
+              type: 'data_item',
+              originalIndex: index
+            }))
+          } else {
+            // Upload the entire object as a single document
+            documents = [{
+              id: `object_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+              data: data,
+              type: 'object',
+              keys: keys
+            }]
+          }
+        }
+      } else {
+        // For primitive values (string, number, boolean), wrap in object
+        documents = [{
+          id: `value_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          data: data,
+          type: typeof data,
+          value: String(data)
+        }]
+      }
+      
+      console.log(`Found ${documents.length} documents to upload`)
+      const startTime = Date.now()
+      console.log(`Upload started at ${new Date().toLocaleTimeString()}`)
       
       let successCount = 0
       let errorCount = 0
       const errors = []
+      let processedCount = 0
       
-      // Process products in batches of 500 (Firestore batch limit)
-      const batchSize = 500
+      // Process documents in smaller batches for better performance
+      const batchSize = 100 // Reduced from 500 for faster processing
       
-      for (let i = 0; i < products.length; i += batchSize) {
+      for (let i = 0; i < documents.length; i += batchSize) {
+        console.log(`Processing batch ${Math.floor(i/batchSize) + 1} of ${Math.ceil(documents.length/batchSize)}`)
         const batch = writeBatch(db)
-        const batchProducts = products.slice(i, i + batchSize)
+        const batchDocuments = documents.slice(i, i + batchSize)
         
-        batchProducts.forEach((product) => {
+        batchDocuments.forEach((document, index) => {
           try {
-            // Detect category based on product data
-            const detectedCategory = detectCategory(product);
+            // For documents that contain actual product data, enhance with category detection
+            let documentData = {}
             
-            // Create enhanced product data with detected categories
-            const productData = {
-              ...product,
-              // Add or override category fields
-              category: product.category || product.Category || detectedCategory.category,
-              subcategory: product.subcategory || product.subCategory || product.Subcategory || product.SubCategory || detectedCategory.subcategory,
-              categoryConfidence: detectedCategory.confidence,
-              categoryAutoDetected: !product.category && !product.Category,
-              // Add metadata
-              uploadedAt: serverTimestamp(),
-              source: 'json-upload'
+            if (document.type === 'product' || document.type === 'item' || document.type === 'data_item') {
+              // This looks like product data, apply product enhancement
+              const product = document.data
+              const detectedCategory = product.category ? 
+                { category: product.category, subcategory: product.subCategory || product.subcategory || 'General', confidence: 1.0 } :
+                detectCategory(product);
+              
+              documentData = {
+                ...product,
+                // Normalize product name field for dashboard display
+                name: product.name || product.title || product.productName || product.product_name || 'Unknown Product',
+                // Add or override category fields - ensure proper field names for dashboard display
+                category: product.category || product.Category || detectedCategory.category,
+                subCategory: product.subCategory || product.subcategory || product.SubCategory || product.Subcategory || detectedCategory.subcategory,
+                // Ensure price field exists for dashboard display
+                price: product.price || product.Price || product.sellingPrice || product.selling_price || 0,
+                categoryConfidence: detectedCategory.confidence,
+                categoryAutoDetected: !product.category && !product.Category,
+                // Add metadata
+                uploadedAt: serverTimestamp(),
+                source: 'json-upload',
+                documentType: document.type,
+                originalIndex: document.originalIndex
+              }
+            } else {
+              // This is raw data, upload as-is with metadata
+              documentData = {
+                originalData: document.data,
+                documentType: document.type,
+                uploadTimestamp: serverTimestamp(),
+                source: 'json-upload',
+                uploadId: document.id
+              }
+              
+              // If it's a simple value, store it directly
+              if (document.type === 'string' || document.type === 'number' || document.type === 'boolean') {
+                documentData.value = document.value
+                documentData.dataType = document.type
+              }
+              
+              // If it's an object, store its keys
+              if (document.type === 'object' && document.keys) {
+                documentData.objectKeys = document.keys
+                documentData.objectSize = document.keys.length
+              }
+            }
+            
+            // Debug logging for first few products
+            if (successCount < 3) {
+              console.log('Uploading product:', {
+                originalProduct: product,
+                enhancedProduct: productData,
+                detectedCategory: detectedCategory
+              })
             }
             
             const docRef = doc(collection(db, 'products'))
-            batch.set(docRef, productData)
+            batch.set(docRef, documentData)
             successCount++
+            processedCount++
+            
+            // Show progress every 50 documents
+            if (processedCount % 50 === 0) {
+              console.log(`Progress: ${processedCount}/${documents.length} documents processed`)
+            }
           } catch (error) {
             errorCount++
-            errors.push(`Product ${product.name || product.title || product.productName || 'Unknown'}: ${error.message}`)
+            const documentName = document.id || `Document ${index + i + 1}`
+            errors.push(`${documentName}: ${error.message}`)
+            console.error(`Error processing document ${index + i + 1}:`, error)
           }
         })
         
-        await batch.commit()
+        try {
+          await batch.commit()
+          console.log(`Batch ${Math.floor(i/batchSize) + 1} committed successfully`)
+        } catch (error) {
+          console.error(`Error committing batch ${Math.floor(i/batchSize) + 1}:`, error)
+          console.error('Batch commit error details:', {
+            message: error.message,
+            code: error.code,
+            name: error.name
+          })
+          // If batch commit fails, count all documents in this batch as errors
+          errorCount += batchDocuments.length
+          errors.push(`Batch ${Math.floor(i/batchSize) + 1} failed: ${error.message}`)
+        }
       }
+      
+      console.log(`Upload process completed. Success: ${successCount}, Errors: ${errorCount}`)
+      const endTime = Date.now()
+      const duration = (endTime - startTime) / 1000
+      console.log(`Upload completed in ${duration} seconds (${(successCount / duration).toFixed(2)} products/second)`)
       
       // Update upload history
       const newUpload = {
@@ -536,11 +745,20 @@ const JsonBulkUpload = () => {
       setUploadHistory(prev => [newUpload, ...prev])
       
       if (errorCount === 0) {
-        setMessage(`Successfully uploaded ${successCount} products to Firebase!`)
+        setMessage(`Successfully uploaded ${successCount} documents to Firebase! All JSON data has been stored.`)
       } else {
         setMessage(`Upload completed with ${successCount} successes and ${errorCount} errors. Check console for details.`)
         console.error('Upload errors:', errors)
       }
+      
+      // Log summary for debugging
+      console.log('Upload Summary:', {
+        totalProcessed: documents.length,
+        successCount: successCount,
+        errorCount: errorCount,
+        firstDocumentSample: documents.length > 0 ? documents[0] : null,
+        documentTypes: [...new Set(documents.map(d => d.type))].join(', ')
+      })
       
       // Reset form
       setUploadedFile(null)
@@ -549,7 +767,9 @@ const JsonBulkUpload = () => {
       
     } catch (error) {
       console.error('Error during bulk upload:', error)
-      setMessage('Error during upload. Please try again.')
+      console.error('Error stack:', error.stack)
+      console.error('Error name:', error.name)
+      setMessage(`Error during upload: ${error.message}. Please check the console for details.`)
     } finally {
       setIsProcessing(false)
     }
@@ -558,44 +778,142 @@ const JsonBulkUpload = () => {
 
 
   const deleteAllProducts = async () => {
-    const confirmDelete = window.confirm('Are you sure you want to delete all products? This action cannot be undone.')
+    const confirmDelete = window.confirm('Are you sure you want to delete ALL products from Firebase? This action cannot be undone and will permanently remove all product data.')
     
     if (!confirmDelete) return
     
     setIsProcessing(true)
-    setMessage('')
+    setMessage('Starting deletion process...')
     
     try {
-      const productsCollection = collection(db, 'products')
-      const snapshot = await getDocs(productsCollection)
+      let totalDeleted = 0
+      const deletionResults = []
       
-      if (snapshot.empty) {
-        setMessage('No products found to delete.')
-        setIsProcessing(false)
-        return
+      // Step 1: Delete from main 'products' collection
+      setMessage('Deleting from products collection...')
+      const productsCollection = collection(db, 'products')
+      const productsSnapshot = await getDocs(productsCollection)
+      
+      if (!productsSnapshot.empty) {
+        // Process in chunks of 400 to avoid Firebase batch size limits
+        const chunkSize = 400
+        let productsDeleted = 0
+        const allDocs = productsSnapshot.docs
+        
+        for (let i = 0; i < allDocs.length; i += chunkSize) {
+          const chunk = allDocs.slice(i, i + chunkSize)
+          const batch = writeBatch(db)
+          
+          chunk.forEach((docSnapshot) => {
+            batch.delete(docSnapshot.ref)
+            productsDeleted++
+          })
+          
+          await batch.commit()
+          
+          // Update progress message
+          setMessage(`Deleting from products collection... (${productsDeleted}/${allDocs.length} processed)`)
+          
+          // Add a small delay between chunks to avoid rate limiting
+          if (i + chunkSize < allDocs.length) {
+            await new Promise(resolve => setTimeout(resolve, 100))
+          }
+        }
+        
+        totalDeleted += productsDeleted
+        deletionResults.push({ collection: 'products', deleted: productsDeleted, status: 'success' })
+        console.log(`Deleted ${productsDeleted} products from main collection`)
+      } else {
+        deletionResults.push({ collection: 'products', deleted: 0, status: 'empty' })
       }
       
-      const batch = writeBatch(db)
-      let deleteCount = 0
+      // Step 2: Delete from other potential product collections
+      setMessage(`Checking other collections... (${totalDeleted} deleted so far)`)
+      const otherCollections = ['items', 'documents', 'data']
       
-      snapshot.docs.forEach((docSnapshot) => {
-        batch.delete(docSnapshot.ref)
-        deleteCount++
-      })
+      for (const collectionName of otherCollections) {
+        try {
+          const collectionRef = collection(db, collectionName)
+          const snapshot = await getDocs(collectionRef)
+          
+          if (!snapshot.empty) {
+            // Check if these are product-like documents
+            const productLikeDocs = snapshot.docs.filter(doc => {
+              const data = doc.data()
+              return data && (
+                data.name || 
+                data.productName || 
+                data.title ||
+                data.category ||
+                data.price ||
+                data.type === 'product'
+              )
+            })
+            
+            if (productLikeDocs.length > 0) {
+              // Process in chunks of 400 to avoid Firebase batch size limits
+              const chunkSize = 400
+              let collectionDeleted = 0
+              
+              for (let i = 0; i < productLikeDocs.length; i += chunkSize) {
+                const chunk = productLikeDocs.slice(i, i + chunkSize)
+                const batch = writeBatch(db)
+                
+                chunk.forEach((docSnapshot) => {
+                  batch.delete(docSnapshot.ref)
+                  collectionDeleted++
+                })
+                
+                await batch.commit()
+                
+                // Update progress message
+                setMessage(`Deleting from ${collectionName}... (${collectionDeleted}/${productLikeDocs.length} processed, ${totalDeleted + collectionDeleted} total)`)
+                
+                // Add a small delay between chunks to avoid rate limiting
+                if (i + chunkSize < productLikeDocs.length) {
+                  await new Promise(resolve => setTimeout(resolve, 100))
+                }
+              }
+              
+              totalDeleted += collectionDeleted
+              deletionResults.push({ collection: collectionName, deleted: collectionDeleted, status: 'success' })
+              console.log(`Deleted ${collectionDeleted} product-like documents from ${collectionName} collection`)
+            } else {
+              deletionResults.push({ collection: collectionName, deleted: 0, status: 'no_products' })
+            }
+          } else {
+            deletionResults.push({ collection: collectionName, deleted: 0, status: 'empty' })
+          }
+        } catch (collectionError) {
+          console.error(`Error deleting from ${collectionName}:`, collectionError)
+          deletionResults.push({ collection: collectionName, deleted: 0, status: 'error', error: collectionError.message })
+        }
+      }
       
-      await batch.commit()
-      
-      setMessage(`Successfully deleted ${deleteCount} products.`)
-      
-      // Clear upload history from localStorage as well
+      // Step 3: Clear all relevant localStorage items
+      setMessage('Clearing local storage...')
       localStorage.removeItem('uploadHistory')
+      localStorage.removeItem('jsonUploadHistory')
+      localStorage.removeItem('products_cache')
+      localStorage.removeItem('documents_cache')
+      
+      // Final message
+      const successfulDeletions = deletionResults.filter(r => r.status === 'success' && r.deleted > 0)
+      if (totalDeleted > 0) {
+        setMessage(`✅ Successfully deleted ${totalDeleted} products from ${successfulDeletions.length} collections. Deletion complete!`)
+      } else {
+        setMessage('ℹ️ No products found to delete in any collection.')
+      }
+      
+      console.log('Deletion results:', deletionResults)
+      console.log(`Total products deleted: ${totalDeleted}`)
       
       // Refresh stats after deletion
       fetchStats()
       
     } catch (error) {
-      console.error('Error deleting products:', error)
-      setMessage('Error occurred while deleting products. Please try again.')
+      console.error('Error during deletion process:', error)
+      setMessage(`❌ Error occurred while deleting products: ${error.message}. Please try again.`)
     } finally {
       setIsProcessing(false)
     }
@@ -612,8 +930,8 @@ const JsonBulkUpload = () => {
 
   // ---------- Category Detection Function ---------- 
   const detectCategory = (product) => {
-    // Check multiple fields for category keywords
-    const searchableFields = [
+    // Quick category detection with optimized keyword matching
+    const searchableText = [
       product.name,
       product.title,
       product.productName,
@@ -629,24 +947,26 @@ const JsonBulkUpload = () => {
       Array.isArray(field) ? field.join(' ') : String(field).toLowerCase()
     ).join(' ');
 
-    // Check for clothing keywords
-    const clothingKeywords = CATEGORY_KEYWORDS.clothing;
-    const foundClothingKeywords = clothingKeywords.filter(keyword => 
-      searchableFields.includes(keyword.toLowerCase())
-    );
-
-    if (foundClothingKeywords.length > 0) {
-      return {
-        category: 'Clothing',
-        subcategory: foundClothingKeywords[0].charAt(0).toUpperCase() + foundClothingKeywords[0].slice(1),
-        confidence: Math.min(foundClothingKeywords.length * 0.2, 1.0)
-      };
+    // Quick category detection - check most common categories first
+    if (searchableText.includes('phone') || searchableText.includes('smartphone') || searchableText.includes('mobile')) {
+      return { category: 'Mobile', subcategory: 'Smartphone', confidence: 0.9 };
+    }
+    
+    if (searchableText.includes('laptop') || searchableText.includes('notebook')) {
+      return { category: 'Laptop', subcategory: 'Laptop', confidence: 0.9 };
+    }
+    
+    // Check for clothing (most common category)
+    const clothingKeywords = ['shirt', 'dress', 'tshirt', 'kurti', 'top', 'pant', 'jean', 'cloth'];
+    const foundClothing = clothingKeywords.find(keyword => searchableText.includes(keyword));
+    if (foundClothing) {
+      return { category: 'Clothing', subcategory: foundClothing.charAt(0).toUpperCase() + foundClothing.slice(1), confidence: 0.8 };
     }
 
     // Check for mobile keywords
     const mobileKeywords = CATEGORY_KEYWORDS.mobile;
     const foundMobileKeywords = mobileKeywords.filter(keyword => 
-      searchableFields.includes(keyword.toLowerCase())
+      searchableText.includes(keyword.toLowerCase())
     );
 
     if (foundMobileKeywords.length > 0) {
@@ -660,7 +980,7 @@ const JsonBulkUpload = () => {
     // Check for laptop keywords
     const laptopKeywords = CATEGORY_KEYWORDS.laptop;
     const foundLaptopKeywords = laptopKeywords.filter(keyword => 
-      searchableFields.includes(keyword.toLowerCase())
+      searchableText.includes(keyword.toLowerCase())
     );
 
     if (foundLaptopKeywords.length > 0) {
@@ -671,24 +991,23 @@ const JsonBulkUpload = () => {
       };
     }
 
-    // Check for electronics keywords
-    const electronicsKeywords = CATEGORY_KEYWORDS.electronics;
-    const foundElectronicsKeywords = electronicsKeywords.filter(keyword => 
-      searchableFields.includes(keyword.toLowerCase())
-    );
-
-    if (foundElectronicsKeywords.length > 0) {
-      return {
-        category: 'Electronics',
-        subcategory: foundElectronicsKeywords[0].charAt(0).toUpperCase() + foundElectronicsKeywords[0].slice(1),
-        confidence: Math.min(foundElectronicsKeywords.length * 0.2, 1.0)
-      };
+    // Quick check for other categories
+    if (searchableText.includes('tv') || searchableText.includes('television') || searchableText.includes('camera')) {
+      return { category: 'Electronics', subcategory: 'Electronics', confidence: 0.7 };
+    }
+    
+    if (searchableText.includes('shoe') || searchableText.includes('sandal') || searchableText.includes('boot')) {
+      return { category: 'Footwear', subcategory: 'Footwear', confidence: 0.7 };
+    }
+    
+    if (searchableText.includes('jewellery') || searchableText.includes('necklace') || searchableText.includes('ring')) {
+      return { category: 'Jewellery', subcategory: 'Jewellery', confidence: 0.7 };
     }
 
     // Check for footwear keywords
     const footwearKeywords = CATEGORY_KEYWORDS.footwear;
     const foundFootwearKeywords = footwearKeywords.filter(keyword => 
-      searchableFields.includes(keyword.toLowerCase())
+      searchableText.includes(keyword.toLowerCase())
     );
 
     if (foundFootwearKeywords.length > 0) {
@@ -702,7 +1021,7 @@ const JsonBulkUpload = () => {
     // Check for jewellery keywords
     const jewelleryKeywords = CATEGORY_KEYWORDS.jewellery;
     const foundJewelleryKeywords = jewelleryKeywords.filter(keyword => 
-      searchableFields.includes(keyword.toLowerCase())
+      searchableText.includes(keyword.toLowerCase())
     );
 
     if (foundJewelleryKeywords.length > 0) {
@@ -716,7 +1035,7 @@ const JsonBulkUpload = () => {
     // Check for home keywords
     const homeKeywords = CATEGORY_KEYWORDS.home;
     const foundHomeKeywords = homeKeywords.filter(keyword => 
-      searchableFields.includes(keyword.toLowerCase())
+      searchableText.includes(keyword.toLowerCase())
     );
 
     if (foundHomeKeywords.length > 0) {
@@ -727,11 +1046,8 @@ const JsonBulkUpload = () => {
       };
     }
 
-    return {
-    category: 'Other',
-    subcategory: 'General',
-    confidence: 0.1
-  };
+    // Default category if no match found
+    return { category: 'Other', subcategory: 'General', confidence: 0.1 };
 }
 
 // ---------- Subcategory Detection Logic ----------
@@ -856,8 +1172,8 @@ function detectSubcategory(category, name = "", description = "") {
 
       {/* Upload Instructions */}
       <div className="bg-gray-800 rounded-lg p-4 sm:p-6 mb-6">
-        <h3 className="text-base sm:text-lg font-semibold text-white mb-4">Upload JSON File</h3>
-        <p className="text-gray-400 mb-4 text-sm sm:text-base">Select any JSON file containing product data. Supports any format - arrays, objects, single products, and flexible field names.</p>
+        <h3 className="text-base sm:text-lg font-semibold text-white mb-4">Upload Any JSON File</h3>
+        <p className="text-gray-400 mb-4 text-sm sm:text-base">Upload ANY JSON data - products, configurations, settings, or any other JSON format. No specific structure required!</p>
         
         
         
@@ -888,8 +1204,56 @@ function detectSubcategory(category, name = "", description = "") {
           className="bg-red-600 text-white px-4 py-3 sm:px-6 rounded-lg hover:bg-red-700 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
         >
           <X className="w-4 h-4 mr-2" />
-          {isProcessing ? 'Deleting...' : 'Delete All Products'}
+          {isProcessing ? 'Deleting All Products...' : 'Delete All Products from Firebase'}
         </button>
+        {/* <button 
+          onClick={() => {
+            // Test button for debugging
+            const testData = [
+              {
+                "name": "Test Product 1",
+                "price": 99.99,
+                "category": "Electronics",
+                "subCategory": "Mobile"
+              },
+              {
+                "name": "Test Product 2", 
+                "price": 149.99,
+                "category": "Clothing",
+                "subCategory": "Shirts"
+              }
+            ]
+            const jsonStr = JSON.stringify(testData)
+            setJsonData(jsonStr)
+            validateJson(jsonStr)
+            setUploadedFile({ name: 'test_products.json' })
+          }}
+          className="bg-purple-600 text-white px-4 py-3 sm:px-6 rounded-lg hover:bg-purple-700 flex items-center justify-center text-sm sm:text-base"
+        >
+          <FileText className="w-4 h-4 mr-2" />
+          Load Test Data
+        </button>
+        <button 
+          onClick={async () => {
+            // Test Firestore connection
+            try {
+              console.log('Testing Firestore connection...')
+              const testCollection = collection(db, 'products')
+              const testQuery = query(testCollection, limit(1))
+              const testSnapshot = await getDocs(testQuery)
+              console.log('Firestore connection test successful!')
+              console.log('Found products:', testSnapshot.size)
+              alert('Firestore connection successful!')
+            } catch (error) {
+              console.error('Firestore connection test failed:', error)
+              alert(`Firestore connection failed: ${error.message}`)
+            }
+          }}
+          className="bg-orange-600 text-white px-4 py-3 sm:px-6 rounded-lg hover:bg-orange-700 flex items-center justify-center text-sm sm:text-base"
+        >
+          <FileText className="w-4 h-4 mr-2" />
+          Test Firestore
+        </button> */}
       </div>
 
       {/* File Upload Section */}
@@ -957,7 +1321,11 @@ function detectSubcategory(category, name = "", description = "") {
           
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
             <button 
-              onClick={processUpload}
+              onClick={() => {
+                console.log('Upload button clicked')
+                alert('Upload button clicked')
+                processUpload()
+              }}
               disabled={!validationResults?.isValid || isProcessing}
               className="bg-green-600 text-white px-4 py-3 sm:px-6 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-sm sm:text-base"
             >
@@ -999,9 +1367,11 @@ function detectSubcategory(category, name = "", description = "") {
                 <tr key={upload.id} className="hover:bg-gray-700">
                   <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-white">{upload.uploadDate}</td>
                   <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                      <CheckCircle className="w-3 h-3 mr-1" />
-                      Success
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(upload.status)}`}>
+                      {upload.status === 'success' && <CheckCircle className="w-3 h-3 mr-1" />}
+                      {upload.status === 'partial' && <AlertCircle className="w-3 h-3 mr-1" />}
+                      {upload.status === 'error' && <XCircle className="w-3 h-3 mr-1" />}
+                      {upload.status === 'success' ? 'Success' : upload.status === 'partial' ? 'Partial' : 'Failed'}
                     </span>
                   </td>
                   <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-white">{upload.recordsProcessed}</td>

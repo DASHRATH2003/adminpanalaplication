@@ -9,6 +9,7 @@ import {
   query,
   orderBy,
   onSnapshot,
+  serverTimestamp,
   where,
   limit
 } from 'firebase/firestore';
@@ -235,109 +236,259 @@ export const categoryService = {
 
 // Orders Services
 export const orderService = {
-  // Get all orders
+  // Get all orders from customer-based structure (users -> customerId -> order -> orderId)
   async getAll() {
     try {
-      console.log('Fetching data from orders collection...');
-      const querySnapshot = await getDocs(collection(db, 'orders'));
-      const orders = querySnapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          ...data
-        };
-      });
-      console.log('Orders found:', orders.length);
+      console.log('Fetching orders from customer-based structure...');
+      const orders = [];
+      
+      // First, get all users
+      const usersSnapshot = await getDocs(collection(db, 'users'));
+      console.log(`Found ${usersSnapshot.size} users`);
+      
+      // For each user, get their orders
+      for (const userDoc of usersSnapshot.docs) {
+        const userId = userDoc.id;
+        const userData = userDoc.data();
+        
+        try {
+          // Get orders for this user
+          const ordersSnapshot = await getDocs(collection(db, 'users', userId, 'orders'));
+          console.log(`User ${userId} has ${ordersSnapshot.size} orders`);
+          
+          ordersSnapshot.forEach(orderDoc => {
+            const orderData = orderDoc.data();
+            // Add user info to order data
+            orders.push({
+              id: orderDoc.id,
+              customerId: userId,
+              customerName: userData.name || userData.email || 'Unknown Customer',
+              customerEmail: userData.email || '',
+              customerPhone: userData.phone || '',
+              ...orderData,
+              // Ensure status field exists - use orderStatus if status is not available
+              status: orderData.status || orderData.orderStatus || 'pending'
+            });
+          });
+        } catch (userError) {
+          console.warn(`Error fetching orders for user ${userId}:`, userError.message);
+          // Continue with other users even if one fails
+        }
+      }
+      
+      console.log(`Total orders found from all customers: ${orders.length}`);
       return orders;
     } catch (error) {
-      console.error('Error fetching orders:', error);
+      console.error('Error fetching orders from customer structure:', error);
       throw error;
     }
   },
 
-  // Get orders by status
+  // Get orders by status from customer-based structure
   async getByStatus(status) {
     try {
-      const q = query(
-        collection(db, 'orders'), 
-        where('status', '==', status)
-      );
-      const querySnapshot = await getDocs(q);
-      const orders = querySnapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          ...data
-        };
-      });
+      console.log(`Fetching orders with status: ${status} from customer-based structure...`);
+      const orders = [];
+      
+      // First, get all users
+      const usersSnapshot = await getDocs(collection(db, 'users'));
+      console.log(`Found ${usersSnapshot.size} users`);
+      
+      // For each user, get their orders with the specified status
+      for (const userDoc of usersSnapshot.docs) {
+        const userId = userDoc.id;
+        const userData = userDoc.data();
+        
+        try {
+          // Get orders for this user
+          const ordersSnapshot = await getDocs(collection(db, 'users', userId, 'orders'));
+          console.log(`User ${userId} has ${ordersSnapshot.size} orders`);
+          
+          ordersSnapshot.forEach(orderDoc => {
+            const orderData = orderDoc.data();
+            // Check if order matches the requested status
+            const orderStatus = orderData.status || orderData.orderStatus || 'pending';
+            if (orderStatus === status) {
+              orders.push({
+                id: orderDoc.id,
+                customerId: userId,
+                customerName: userData.name || userData.email || 'Unknown Customer',
+                customerEmail: userData.email || '',
+                customerPhone: userData.phone || '',
+                ...orderData,
+                status: orderStatus
+              });
+            }
+          });
+        } catch (userError) {
+          console.warn(`Error fetching orders for user ${userId}:`, userError.message);
+          // Continue with other users even if one fails
+        }
+      }
+      
+      console.log(`Found ${orders.length} orders with status: ${status}`);
       return orders;
     } catch (error) {
-      console.error('Error fetching orders by status:', error);
+      console.error('Error fetching orders by status from customer structure:', error);
       throw error;
     }
   },
 
-  // Add new order
+  // Add new order to customer-based structure
   async add(orderData) {
     try {
-      const docRef = await addDoc(collection(db, 'orders'), {
-        ...orderData
-      });
-      
-      console.log('Order added with ID:', docRef.id);
-      return {
-        id: docRef.id,
-        ...orderData
-      };
+      // If customerId is provided, add order under that customer
+      if (orderData.customerId) {
+        const docRef = await addDoc(collection(db, 'users', orderData.customerId, 'orders'), {
+          ...orderData
+        });
+        
+        console.log('Order added to customer', orderData.customerId, 'with ID:', docRef.id);
+        return {
+          id: docRef.id,
+          ...orderData
+        };
+      } else {
+        // Fallback to general orders collection if no customerId
+        const docRef = await addDoc(collection(db, 'orders'), {
+          ...orderData
+        });
+        
+        console.log('Order added with ID:', docRef.id);
+        return {
+          id: docRef.id,
+          ...orderData
+        };
+      }
     } catch (error) {
       console.error('Error adding order:', error);
       throw error;
     }
   },
 
-  // Update order
+  // Update order in customer-based structure
   async update(orderId, orderData) {
     try {
-      await updateDoc(doc(db, 'orders', orderId), {
-        ...orderData
-      });
-      
-      console.log('Order updated successfully');
-      return {
-        id: orderId,
-        ...orderData
-      };
+      // If customerId is provided, update order under that customer
+      if (orderData.customerId) {
+        await updateDoc(doc(db, 'users', orderData.customerId, 'orders', orderId), {
+          ...orderData
+        });
+        
+        console.log('Order updated successfully in customer', orderData.customerId);
+        return {
+          id: orderId,
+          ...orderData
+        };
+      } else {
+        // Fallback to general orders collection if no customerId
+        await updateDoc(doc(db, 'orders', orderId), {
+          ...orderData
+        });
+        
+        console.log('Order updated successfully');
+        return {
+          id: orderId,
+          ...orderData
+        };
+      }
     } catch (error) {
       console.error('Error updating order:', error);
       throw error;
     }
   },
 
-  // Delete order
-  async delete(orderId) {
+  // Delete order from customer-based structure
+  async delete(orderId, customerId = null) {
     try {
-      await deleteDoc(doc(db, 'orders', orderId));
-      console.log('Order deleted successfully');
+      // If customerId is provided, delete from customer orders
+      if (customerId) {
+        await deleteDoc(doc(db, 'users', customerId, 'orders', orderId));
+        console.log('Order deleted successfully from customer', customerId);
+      } else {
+        // Try to find the order first to get customerId
+        const order = await this.getById(orderId);
+        if (order && order.customerId) {
+          await deleteDoc(doc(db, 'users', order.customerId, 'orders', orderId));
+          console.log('Order deleted successfully from customer', order.customerId);
+        } else {
+          // Fallback to general orders collection
+          await deleteDoc(doc(db, 'orders', orderId));
+          console.log('Order deleted successfully');
+        }
+      }
     } catch (error) {
       console.error('Error deleting order:', error);
       throw error;
     }
   },
 
-  // Get single order
-  async getById(orderId) {
+  // Get single order from customer-based structure
+  async getById(orderId, customerId = null) {
     try {
-      const docRef = doc(db, 'orders', orderId);
-      const docSnap = await getDoc(docRef);
-      
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        return {
-          id: docSnap.id,
-          ...data
-        };
+      // If customerId is provided, get from customer orders
+      if (customerId) {
+        const docRef = doc(db, 'users', customerId, 'orders', orderId);
+        const docSnap = await getDoc(docRef);
+        
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          return {
+            id: docSnap.id,
+            customerId: customerId,
+            ...data,
+            // Ensure status field exists - use orderStatus if status is not available
+            status: data.status || data.orderStatus || 'pending'
+          };
+        } else {
+          throw new Error('Order not found');
+        }
       } else {
-        throw new Error('Order not found');
+        // Try to find the order by searching through all users
+        console.log(`Searching for order ${orderId} in all customer orders...`);
+        const usersSnapshot = await getDocs(collection(db, 'users'));
+        
+        for (const userDoc of usersSnapshot.docs) {
+          const userId = userDoc.id;
+          const userData = userDoc.data();
+          
+          try {
+            const orderDocRef = doc(db, 'users', userId, 'orders', orderId);
+            const orderDocSnap = await getDoc(orderDocRef);
+            
+            if (orderDocSnap.exists()) {
+              const orderData = orderDocSnap.data();
+              return {
+                id: orderDocSnap.id,
+                customerId: userId,
+                customerName: userData.name || userData.email || 'Unknown Customer',
+                customerEmail: userData.email || '',
+                customerPhone: userData.phone || '',
+                ...orderData,
+                // Ensure status field exists - use orderStatus if status is not available
+                status: orderData.status || orderData.orderStatus || 'pending'
+              };
+            }
+          } catch (userError) {
+            console.warn(`Error checking order for user ${userId}:`, userError.message);
+          }
+        }
+        
+        // Fallback to general orders collection
+        const docRef = doc(db, 'orders', orderId);
+        const docSnap = await getDoc(docRef);
+        
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          return {
+            id: docSnap.id,
+            ...data,
+            // Ensure status field exists - use orderStatus if status is not available
+            status: data.status || data.orderStatus || 'pending'
+          };
+        } else {
+          throw new Error('Order not found');
+        }
       }
     } catch (error) {
       console.error('Error fetching order:', error);
@@ -345,26 +496,65 @@ export const orderService = {
     }
   },
 
-  // Update order status
-  async updateStatus(orderId, status) {
+  // Update order status in customer-based structure
+  async updateStatus(orderId, status, customerId = null) {
     try {
-      await updateDoc(doc(db, 'orders', orderId), {
-        status: status
-      });
-      console.log('Order status updated successfully');
+      // If customerId is provided, update in customer orders
+      if (customerId) {
+        await updateDoc(doc(db, 'users', customerId, 'orders', orderId), {
+          orderStatus: status,
+          status: status  // Also update the status field for consistency
+        });
+        console.log('Order status updated successfully in customer', customerId);
+      } else {
+        // Try to find the order first to get customerId
+        const order = await this.getById(orderId);
+        if (order && order.customerId) {
+          await updateDoc(doc(db, 'users', order.customerId, 'orders', orderId), {
+            orderStatus: status,
+            status: status  // Also update the status field for consistency
+          });
+          console.log('Order status updated successfully in customer', order.customerId);
+        } else {
+          // Fallback to general orders collection
+          await updateDoc(doc(db, 'orders', orderId), {
+            orderStatus: status,
+            status: status  // Also update the status field for consistency
+          });
+          console.log('Order status updated successfully');
+        }
+      }
     } catch (error) {
       console.error('Error updating order status:', error);
       throw error;
     }
   },
 
-  // Update payment status
-  async updatePaymentStatus(orderId, paymentStatus) {
+  // Update payment status in customer-based structure
+  async updatePaymentStatus(orderId, paymentStatus, customerId = null) {
     try {
-      await updateDoc(doc(db, 'orders', orderId), {
-        paymentStatus: paymentStatus
-      });
-      console.log('Payment status updated successfully');
+      // If customerId is provided, update in customer orders
+      if (customerId) {
+        await updateDoc(doc(db, 'users', customerId, 'orders', orderId), {
+          paymentStatus: paymentStatus
+        });
+        console.log('Payment status updated successfully in customer', customerId);
+      } else {
+        // Try to find the order first to get customerId
+        const order = await this.getById(orderId);
+        if (order && order.customerId) {
+          await updateDoc(doc(db, 'users', order.customerId, 'orders', orderId), {
+            paymentStatus: paymentStatus
+          });
+          console.log('Payment status updated successfully in customer', order.customerId);
+        } else {
+          // Fallback to general orders collection
+          await updateDoc(doc(db, 'orders', orderId), {
+            paymentStatus: paymentStatus
+          });
+          console.log('Payment status updated successfully');
+        }
+      }
     } catch (error) {
       console.error('Error updating payment status:', error);
       throw error;

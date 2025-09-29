@@ -9,6 +9,15 @@ const Orders = () => {
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [showModal, setShowModal] = useState(false);
   const [editingOrder, setEditingOrder] = useState(null);
+  const [orderStats, setOrderStats] = useState({
+    all: 0,
+    pending: 0,
+    processing: 0,
+    shipped: 0,
+    delivered: 0,
+    cancelled: 0
+  });
+  const [loadingStats, setLoadingStats] = useState(false);
   const [formData, setFormData] = useState({
     customerName: '',
     customerEmail: '',
@@ -19,6 +28,9 @@ const Orders = () => {
     items: [],
     shippingAddress: ''
   });
+  
+  // Track pending status changes for each order
+  const [pendingStatusChanges, setPendingStatusChanges] = useState({});
 
   // Fetch orders on component mount
   useEffect(() => {
@@ -28,27 +40,89 @@ const Orders = () => {
   // Filter orders when filter changes
   useEffect(() => {
     filterOrders();
+    calculateOrderStats();
   }, [orders, selectedFilter]);
 
   const fetchOrders = async () => {
     try {
       setLoading(true);
-      const fetchedOrders = await orderService.getAll();
+      console.log('Fetching orders from Firebase...');
+      let fetchedOrders;
+      
+      if (selectedFilter === 'all') {
+        fetchedOrders = await orderService.getAll();
+      } else {
+        fetchedOrders = await orderService.getByStatus(selectedFilter);
+      }
+      
+      console.log('Orders fetched successfully:', fetchedOrders.length);
+      console.log('Sample order structure:', fetchedOrders.length > 0 ? fetchedOrders[0] : 'No orders');
+      
+      // Log status information for debugging
+      fetchedOrders.forEach((order, index) => {
+        console.log(`Order ${index + 1} (${order.id}):`, {
+          status: order.status,
+          orderStatus: order.orderStatus,
+          customerName: order.customerName
+        });
+      });
+      
+      // Log order totals for debugging
+      fetchedOrders.forEach((order, index) => {
+        const calculatedTotal = calculateOrderTotal(order);
+        console.log(`Order ${index + 1} (${order.id}):`, {
+          originalAmount: order.amount,
+          calculatedTotal: calculatedTotal,
+          hasItems: !!order.items,
+          itemCount: order.items?.length || 0,
+          items: order.items // Log full items array to see structure
+        });
+      });
+      
+      console.log('Setting orders state with:', fetchedOrders.length, 'orders');
       setOrders(fetchedOrders);
+      console.log('Orders state updated, will trigger filter recalculation');
     } catch (error) {
       console.error('Error fetching orders:', error);
+      alert('Error fetching orders. Please check your connection.');
     } finally {
       setLoading(false);
     }
   };
 
   const filterOrders = () => {
+    console.log(`Filtering orders. Selected filter: ${selectedFilter}, Total orders: ${orders.length}`);
     if (selectedFilter === 'all') {
       setFilteredOrders(orders);
+      console.log('Showing all orders:', orders.length);
     } else {
-      const filtered = orders.filter(order => order.status === selectedFilter);
+      const filtered = orders.filter(order => {
+        const matches = order.status === selectedFilter;
+        console.log(`Order ${order.id}: status=${order.status}, filter=${selectedFilter}, matches=${matches}`);
+        return matches;
+      });
+      console.log(`Filtered orders for ${selectedFilter}:`, filtered.length);
       setFilteredOrders(filtered);
     }
+  };
+
+  const calculateOrderStats = () => {
+    setLoadingStats(true);
+    const stats = {
+      all: orders.length,
+      pending: orders.filter(order => order.status === 'pending').length,
+      processing: orders.filter(order => order.status === 'processing').length,
+      shipped: orders.filter(order => order.status === 'shipped').length,
+      delivered: orders.filter(order => order.status === 'delivered').length,
+      cancelled: orders.filter(order => order.status === 'cancelled').length
+    };
+    setOrderStats(stats);
+    setLoadingStats(false);
+  };
+
+  // Refresh orders and statistics
+  const refreshOrders = async () => {
+    await fetchOrders();
   };
 
   const handleFilterChange = (e) => {
@@ -65,19 +139,20 @@ const Orders = () => {
       customerName: order.customerName || '',
       customerEmail: order.customerEmail || '',
       customerPhone: order.customerPhone || '',
-      amount: order.amount || '',
+      amount: calculateOrderTotal(order),
       paymentStatus: order.paymentStatus || 'pending',
       status: order.status || 'pending',
-      items: order.items || [],
-      shippingAddress: order.shippingAddress || ''
+      items: JSON.stringify(order.items || [], null, 2),
+      shippingAddress: order.shippingAddress || '',
+      customerId: order.customerId || null
     });
     setShowModal(true);
   };
 
-  const handleDelete = async (orderId) => {
+  const handleDelete = async (orderId, customerId = null) => {
     if (window.confirm('Are you sure you want to delete this order?')) {
       try {
-        await orderService.delete(orderId);
+        await orderService.delete(orderId, customerId);
         await fetchOrders(); // Refresh the list
       } catch (error) {
         console.error('Error deleting order:', error);
@@ -86,14 +161,35 @@ const Orders = () => {
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = async (e) => {
+    if (e) e.preventDefault();
+    
     try {
+      let processedFormData = { ...formData };
+      
+      // Parse items JSON if it's a string
+      if (typeof processedFormData.items === 'string') {
+        try {
+          processedFormData.items = JSON.parse(processedFormData.items);
+        } catch (error) {
+          console.error('Error parsing items JSON:', error);
+          alert('Invalid items format. Please check your JSON.');
+          return;
+        }
+      }
+      
+      // Ensure amount is a number
+      processedFormData.amount = parseFloat(processedFormData.amount) || 0;
+      
       if (editingOrder) {
-        // Update existing order
-        await orderService.update(editingOrder.id, formData);
+        // Update existing order - preserve customerId if not provided
+        if (!processedFormData.customerId && editingOrder.customerId) {
+          processedFormData.customerId = editingOrder.customerId;
+        }
+        await orderService.update(editingOrder.id, processedFormData);
       } else {
         // Add new order
-        await orderService.add(formData);
+        await orderService.add(processedFormData);
       }
       
       setShowModal(false);
@@ -102,7 +198,7 @@ const Orders = () => {
       await fetchOrders(); // Refresh the list
     } catch (error) {
       console.error('Error saving order:', error);
-      alert('Error saving order');
+      alert('Error saving order: ' + error.message);
     }
   };
 
@@ -114,8 +210,9 @@ const Orders = () => {
       amount: '',
       paymentStatus: 'pending',
       status: 'pending',
-      items: [],
-      shippingAddress: ''
+      items: '[]',
+      shippingAddress: '',
+      customerId: null
     });
   };
 
@@ -123,6 +220,82 @@ const Orders = () => {
     resetForm();
     setEditingOrder(null);
     setShowModal(true);
+  };
+
+  const handleStatusUpdate = async (orderId, newStatus, customerId = null) => {
+    try {
+      console.log(`Updating order ${orderId} status to ${newStatus}...`);
+      
+      // Immediately update the local state for real-time feel
+      setOrders(prevOrders => 
+        prevOrders.map(order => 
+          order.id === orderId 
+            ? { ...order, status: newStatus, orderStatus: newStatus }
+            : order
+        )
+      );
+      
+      // Update Firebase
+      await orderService.updateStatus(orderId, newStatus, customerId);
+      console.log(`Order ${orderId} status updated to ${newStatus} in Firebase`);
+      
+      // Wait for Firebase to propagate the change
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Always fetch all orders first to ensure we get the updated order
+      console.log('Fetching all orders to verify update...');
+      const allOrders = await orderService.getAll();
+      
+      // Find the updated order to verify
+      const updatedOrder = allOrders.find(o => o.id === orderId);
+      console.log(`Verification - Order ${orderId} status after refresh:`, updatedOrder?.status);
+      
+      // Set the orders state with all orders
+      setOrders(allOrders);
+      
+      // Now apply the current filter locally
+      if (selectedFilter !== 'all') {
+        const filtered = allOrders.filter(order => order.status === selectedFilter);
+        setFilteredOrders(filtered);
+        console.log(`Applied filter ${selectedFilter}: ${filtered.length} orders`);
+      } else {
+        setFilteredOrders(allOrders);
+      }
+      
+      // Recalculate stats
+      calculateOrderStats();
+      
+      console.log(`Status update completed successfully`);
+      
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      alert('Error updating order status');
+      
+      // If there's an error, revert to fetching normally
+      await fetchOrders();
+    }
+  };
+
+  // Handle status select change (store pending change)
+  const handleStatusSelectChange = (orderId, newStatus) => {
+    setPendingStatusChanges(prev => ({
+      ...prev,
+      [orderId]: newStatus
+    }));
+  };
+
+  // Handle update button click (apply the pending change)
+  const handleStatusUpdateClick = async (orderId, customerId = null) => {
+    const newStatus = pendingStatusChanges[orderId];
+    if (newStatus) {
+      await handleStatusUpdate(orderId, newStatus, customerId);
+      // Clear the pending change after successful update
+      setPendingStatusChanges(prev => {
+        const updated = { ...prev };
+        delete updated[orderId];
+        return updated;
+      });
+    }
   };
 
   const formatDate = (date) => {
@@ -136,6 +309,113 @@ const Orders = () => {
 
   const formatCurrency = (amount) => {
     return `₹${parseFloat(amount || 0).toLocaleString('en-IN')}`;
+  };
+
+  const calculateOrderTotal = (order) => {
+    console.log('Calculating total for order:', order.id, 'Amount:', order.amount, 'totalAmount:', order.totalAmount, 'Items:', order.items, 'Products:', order.products);
+    
+    // Check for totalAmount field first (this is what your Firebase shows)
+    if (order.totalAmount && order.totalAmount > 0) {
+      console.log('Using totalAmount field:', order.totalAmount);
+      return order.totalAmount;
+    }
+    
+    // Check for amount field (legacy support)
+    if (order.amount && order.amount > 0) {
+      console.log('Using existing amount:', order.amount);
+      return order.amount;
+    }
+    
+    // Calculate total from products array (your Firebase structure)
+    if (order.products && Array.isArray(order.products) && order.products.length > 0) {
+      console.log('Calculating from products array:', order.products);
+      const total = order.products.reduce((sum, product, index) => {
+        // Handle different possible product structures
+        let itemPrice = 0;
+        
+        // Try common price field names
+        if (product.price && !isNaN(parseFloat(product.price))) {
+          itemPrice = parseFloat(product.price);
+        } else if (product.sellingPrice && !isNaN(parseFloat(product.sellingPrice))) {
+          itemPrice = parseFloat(product.sellingPrice);
+        } else if (product.mrp && !isNaN(parseFloat(product.mrp))) {
+          itemPrice = parseFloat(product.mrp);
+        } else if (product.cost && !isNaN(parseFloat(product.cost))) {
+          itemPrice = parseFloat(product.cost);
+        } else if (product.name && !isNaN(parseFloat(product.name))) {
+          itemPrice = parseFloat(product.name);
+        } else {
+          console.log(`Product ${index} has no recognizable price field:`, product);
+        }
+        
+        const itemQuantity = parseInt(product.quantity) || parseInt(product.qty) || parseInt(product.count) || 1;
+        const itemTotal = itemPrice * itemQuantity;
+        console.log(`Product ${index}: price=${itemPrice}, qty=${itemQuantity}, total=${itemTotal}, product:`, product);
+        return sum + itemTotal;
+      }, 0);
+      console.log('Calculated total from products:', total);
+      return total;
+    }
+    
+    // Fallback: Calculate from items array (legacy support)
+    if (order.items && Array.isArray(order.items) && order.items.length > 0) {
+      console.log('Calculating from items array:', order.items);
+      const total = order.items.reduce((sum, item, index) => {
+        // Handle different possible item structures
+        let itemPrice = 0;
+        
+        // Try common price field names
+        if (item.price && !isNaN(parseFloat(item.price))) {
+          itemPrice = parseFloat(item.price);
+        } else if (item.sellingPrice && !isNaN(parseFloat(item.sellingPrice))) {
+          itemPrice = parseFloat(item.sellingPrice);
+        } else if (item.mrp && !isNaN(parseFloat(item.mrp))) {
+          itemPrice = parseFloat(item.mrp);
+        } else if (item.cost && !isNaN(parseFloat(item.cost))) {
+          itemPrice = parseFloat(item.cost);
+        } else if (item.name && !isNaN(parseFloat(item.name))) {
+          itemPrice = parseFloat(item.name);
+        } else {
+          console.log(`Item ${index} has no recognizable price field:`, item);
+        }
+        
+        const itemQuantity = parseInt(item.quantity) || parseInt(item.qty) || parseInt(item.count) || 1;
+        const itemTotal = itemPrice * itemQuantity;
+        console.log(`Item ${index}: price=${itemPrice}, qty=${itemQuantity}, total=${itemTotal}, item:`, item);
+        return sum + itemTotal;
+      }, 0);
+      console.log('Calculated total from items:', total);
+      return total;
+    }
+    
+    console.log('No amount, totalAmount, products, or items found, returning 0');
+    return 0;
+  };
+
+  // Debug display component to show calculation details
+  const DebugOrderInfo = ({ order }) => {
+    const calculatedTotal = calculateOrderTotal(order);
+    return (
+      <div style={{ fontSize: '10px', color: '#666', marginTop: '5px', border: '1px dashed #ccc', padding: '2px' }}>
+        <div>Debug: Order {order.id}</div>
+        <div>STATUS: {order.status} | orderStatus: {order.orderStatus || 'none'}</div>
+        <div>totalAmount: {order.totalAmount || 'none'}</div>
+        <div>amount: {order.amount || 'none'}</div>
+        <div>Calculated total: {calculatedTotal}</div>
+        <div>Products count: {order.products?.length || 0}</div>
+        {order.products?.map((product, index) => (
+          <div key={index} style={{ marginLeft: '10px' }}>
+            Product {index}: name="{product.name}" price={product.price} qty={product.quantity}
+          </div>
+        ))}
+        <div>Items count: {order.items?.length || 0}</div>
+        {order.items?.map((item, index) => (
+          <div key={index} style={{ marginLeft: '10px' }}>
+            Item {index}: name="{item.name}" price={item.price} qty={item.quantity}
+          </div>
+        ))}
+      </div>
+    );
   };
 
   return (
@@ -175,10 +455,72 @@ const Orders = () => {
         </div>
       </div>
 
+      {/* Order Statistics */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+        <div className={`rounded-lg p-4 text-center cursor-pointer hover:bg-gray-700 transition-colors ${
+          selectedFilter === 'all' ? 'bg-blue-900 border-2 border-blue-500' : 'bg-gray-800'
+        }`} onClick={() => setSelectedFilter('all')}>
+          <div className="text-2xl font-bold text-blue-400">
+            {loadingStats ? <div className="animate-pulse bg-gray-600 h-8 w-8 rounded mx-auto"></div> : orderStats.all}
+          </div>
+          <div className="text-sm text-gray-400">Total Orders</div>
+        </div>
+        <div className={`rounded-lg p-4 text-center cursor-pointer hover:bg-gray-700 transition-colors ${
+          selectedFilter === 'pending' ? 'bg-yellow-900 border-2 border-yellow-500' : 'bg-gray-800'
+        }`} onClick={() => setSelectedFilter('pending')}>
+          <div className="text-2xl font-bold text-yellow-400">
+            {loadingStats ? <div className="animate-pulse bg-gray-600 h-8 w-8 rounded mx-auto"></div> : orderStats.pending}
+          </div>
+          <div className="text-sm text-gray-400">Pending</div>
+        </div>
+        <div className={`rounded-lg p-4 text-center cursor-pointer hover:bg-gray-700 transition-colors ${
+          selectedFilter === 'processing' ? 'bg-orange-900 border-2 border-orange-500' : 'bg-gray-800'
+        }`} onClick={() => setSelectedFilter('processing')}>
+          <div className="text-2xl font-bold text-orange-400">
+            {loadingStats ? <div className="animate-pulse bg-gray-600 h-8 w-8 rounded mx-auto"></div> : orderStats.processing}
+          </div>
+          <div className="text-sm text-gray-400">Processing</div>
+        </div>
+        <div className={`rounded-lg p-4 text-center cursor-pointer hover:bg-gray-700 transition-colors ${
+          selectedFilter === 'shipped' ? 'bg-purple-900 border-2 border-purple-500' : 'bg-gray-800'
+        }`} onClick={() => setSelectedFilter('shipped')}>
+          <div className="text-2xl font-bold text-purple-400">
+            {loadingStats ? <div className="animate-pulse bg-gray-600 h-8 w-8 rounded mx-auto"></div> : orderStats.shipped}
+          </div>
+          <div className="text-sm text-gray-400">Shipped</div>
+        </div>
+        <div className={`rounded-lg p-4 text-center cursor-pointer hover:bg-gray-700 transition-colors ${
+          selectedFilter === 'delivered' ? 'bg-green-900 border-2 border-green-500' : 'bg-gray-800'
+        }`} onClick={() => setSelectedFilter('delivered')}>
+          <div className="text-2xl font-bold text-green-400">
+            {loadingStats ? <div className="animate-pulse bg-gray-600 h-8 w-8 rounded mx-auto"></div> : orderStats.delivered}
+          </div>
+          <div className="text-sm text-gray-400">Delivered</div>
+        </div>
+        <div className={`rounded-lg p-4 text-center cursor-pointer hover:bg-gray-700 transition-colors ${
+          selectedFilter === 'cancelled' ? 'bg-red-900 border-2 border-red-500' : 'bg-gray-800'
+        }`} onClick={() => setSelectedFilter('cancelled')}>
+          <div className="text-2xl font-bold text-red-400">
+            {loadingStats ? <div className="animate-pulse bg-gray-600 h-8 w-8 rounded mx-auto"></div> : orderStats.cancelled}
+          </div>
+          <div className="text-sm text-gray-400">Cancelled</div>
+        </div>
+      </div>
+
       <div className="mb-4">
-        <h3 className="text-lg font-medium text-white mb-4">
-          My Orders ({filteredOrders.length})
-        </h3>
+        <div className="flex items-center space-x-4">
+          <h3 className="text-lg font-medium text-white mb-4">
+            {selectedFilter === 'all' ? 'All Orders' : `${selectedFilter.charAt(0).toUpperCase() + selectedFilter.slice(1)} Orders`} ({filteredOrders.length})
+          </h3>
+          <button
+            onClick={refreshOrders}
+            disabled={loading}
+            className="bg-gray-600 hover:bg-gray-700 disabled:bg-gray-800 text-white px-3 py-1 rounded text-sm flex items-center space-x-1 transition-colors"
+          >
+            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+            <span>Refresh</span>
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -196,7 +538,7 @@ const Orders = () => {
                   <tr>
                     <th className="px-6 py-4 text-left text-sm font-medium text-gray-300">Customer Name</th>
                     <th className="px-6 py-4 text-left text-sm font-medium text-gray-300">Order Amount</th>
-                    <th className="px-6 py-4 text-left text-sm font-medium text-gray-300">Payment</th>
+                    <th className="px-6 py-4 text-left text-sm font-medium text-gray-300">Payment Method/Status</th>
                     <th className="px-6 py-4 text-left text-sm font-medium text-gray-300">Status</th>
                     <th className="px-6 py-4 text-left text-sm font-medium text-gray-300">Date</th>
                     <th className="px-6 py-4 text-left text-sm font-medium text-gray-300">Actions</th>
@@ -215,17 +557,25 @@ const Orders = () => {
                     filteredOrders.map((order) => (
                       <tr key={order.id} className="border-t border-gray-700 hover:bg-gray-750">
                         <td className="px-6 py-4 text-white">{order.customerName}</td>
-                        <td className="px-6 py-4 text-white">{formatCurrency(order.amount)}</td>
+                        <td className="px-6 py-4 text-white">
+                          {formatCurrency(calculateOrderTotal(order))}
+                          <DebugOrderInfo order={order} />
+                        </td>
                         <td className="px-6 py-4">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            order.paymentStatus === 'paid' 
-                              ? 'bg-green-100 text-green-800'
-                              : order.paymentStatus === 'pending'
-                              ? 'bg-yellow-100 text-yellow-800'
-                              : 'bg-red-100 text-red-800'
-                          }`}>
-                            {order.paymentStatus}
-                          </span>
+                          <div className="space-y-1">
+                            <div className="text-sm text-gray-300">
+                              {order.paymentMethod || 'N/A'}
+                            </div>
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                              order.paymentStatus === 'paid' 
+                                ? 'bg-green-100 text-green-800'
+                                : order.paymentStatus === 'pending'
+                                ? 'bg-yellow-100 text-yellow-800'
+                                : 'bg-red-100 text-red-800'
+                            }`}>
+                              {order.paymentStatus}
+                            </span>
+                          </div>
                         </td>
                         <td className="px-6 py-4">
                           <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
@@ -243,6 +593,27 @@ const Orders = () => {
                         <td className="px-6 py-4 text-gray-300">{formatDate(order.createdAt)}</td>
                         <td className="px-6 py-4">
                           <div className="flex items-center space-x-2">
+                            <div className="flex flex-col space-y-1">
+                              <select
+                                value={pendingStatusChanges[order.id] || order.status}
+                                onChange={(e) => handleStatusSelectChange(order.id, e.target.value)}
+                                className="bg-gray-700 text-white text-xs px-2 py-1 rounded border border-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              >
+                                <option value="pending">Pending</option>
+                                <option value="processing">Processing</option>
+                                <option value="shipped">Shipped</option>
+                                <option value="delivered">Delivered</option>
+                                <option value="cancelled">Cancelled</option>
+                              </select>
+                              {pendingStatusChanges[order.id] && pendingStatusChanges[order.id] !== order.status && (
+                                <button
+                                  onClick={() => handleStatusUpdateClick(order.id, order.customerId)}
+                                  className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-2 py-1 rounded transition-colors"
+                                >
+                                  Update
+                                </button>
+                              )}
+                            </div>
                             <button 
                               onClick={() => handleEdit(order)}
                               className="text-blue-400 hover:text-blue-300"
@@ -250,7 +621,7 @@ const Orders = () => {
                               <Edit size={16} />
                             </button>
                             <button 
-                              onClick={() => handleDelete(order.id)}
+                              onClick={() => handleDelete(order.id, order.customerId)}
                               className="text-red-400 hover:text-red-300"
                             >
                               <Trash2 size={16} />
@@ -294,7 +665,10 @@ const Orders = () => {
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-sm font-semibold text-white">{formatCurrency(order.amount)}</div>
+                  <div className="text-sm font-semibold text-white">
+                      {formatCurrency(calculateOrderTotal(order))}
+                      <DebugOrderInfo order={order} />
+                    </div>
                   <div className="text-xs text-gray-400">{formatDate(order.createdAt)}</div>
                 </div>
               </div>
@@ -304,6 +678,15 @@ const Orders = () => {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center text-sm text-gray-300">
                     <CreditCard className="h-4 w-4 mr-2 text-gray-400" />
+                    <span>Payment Method</span>
+                  </div>
+                  <span className="text-sm text-gray-300">
+                    {order.paymentMethod || 'N/A'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center text-sm text-gray-300">
+                    <Package className="h-4 w-4 mr-2 text-gray-400" />
                     <span>Payment Status</span>
                   </div>
                   <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
@@ -336,21 +719,43 @@ const Orders = () => {
               </div>
 
               {/* Actions */}
-              <div className="flex gap-2 pt-3 border-t border-gray-700">
-                <button 
-                  onClick={() => handleEdit(order)}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-sm font-medium transition-colors flex items-center justify-center space-x-2"
+              <div className="space-y-2 pt-3 border-t border-gray-700">
+                <select
+                  value={pendingStatusChanges[order.id] || order.status}
+                  onChange={(e) => handleStatusSelectChange(order.id, e.target.value)}
+                  className="w-full bg-gray-700 text-white text-sm px-3 py-2 rounded border border-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 >
-                  <Edit size={16} />
-                  <span>Edit</span>
-                </button>
-                <button 
-                  onClick={() => handleDelete(order.id)}
-                  className="flex-1 bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded text-sm font-medium transition-colors flex items-center justify-center space-x-2"
-                >
-                  <Trash2 size={16} />
-                  <span>Delete</span>
-                </button>
+                  <option value="pending">Pending</option>
+                  <option value="processing">Processing</option>
+                  <option value="shipped">Shipped</option>
+                  <option value="delivered">Delivered</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+                {pendingStatusChanges[order.id] && pendingStatusChanges[order.id] !== order.status && (
+                  <button
+                    onClick={() => handleStatusUpdateClick(order.id, order.customerId)}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-sm font-medium transition-colors flex items-center justify-center space-x-2"
+                  >
+                    <Save size={16} />
+                    <span>Update Status</span>
+                  </button>
+                )}
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => handleEdit(order)}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-sm font-medium transition-colors flex items-center justify-center space-x-2"
+                  >
+                    <Edit size={16} />
+                    <span>Edit</span>
+                  </button>
+                  <button 
+                    onClick={() => handleDelete(order.id, order.customerId)}
+                    className="flex-1 bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded text-sm font-medium transition-colors flex items-center justify-center space-x-2"
+                  >
+                    <Trash2 size={16} />
+                    <span>Delete</span>
+                  </button>
+                </div>
               </div>
             </div>
           ))
