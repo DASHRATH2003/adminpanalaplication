@@ -632,83 +632,85 @@ const JsonBulkUpload = () => {
         const batch = writeBatch(db)
         const batchDocuments = documents.slice(i, i + batchSize)
         
-        batchDocuments.forEach((document, index) => {
-          try {
-            // For documents that contain actual product data, enhance with category detection
-            let documentData = {}
-            
-            if (document.type === 'product' || document.type === 'item' || document.type === 'data_item') {
-              // This looks like product data, apply product enhancement
-              const product = document.data
-              const detectedCategory = product.category ? 
-                { category: product.category, subcategory: product.subCategory || product.subcategory || 'General', confidence: 1.0 } :
-                detectCategory(product);
-              
-              documentData = {
-                ...product,
-                // Normalize product name field for dashboard display
-                name: product.name || product.title || product.productName || product.product_name || 'Unknown Product',
-                // Add or override category fields - ensure proper field names for dashboard display
-                category: product.category || product.Category || detectedCategory.category,
-                subCategory: product.subCategory || product.subcategory || product.SubCategory || product.Subcategory || detectedCategory.subcategory,
-                // Ensure price field exists for dashboard display
-                price: product.price || product.Price || product.sellingPrice || product.selling_price || 0,
-                categoryConfidence: detectedCategory.confidence,
-                categoryAutoDetected: !product.category && !product.Category,
-                // Add metadata
-                uploadedAt: serverTimestamp(),
-                source: 'json-upload',
-                documentType: document.type,
-                originalIndex: document.originalIndex
-              }
-            } else {
-              // This is raw data, upload as-is with metadata
-              documentData = {
-                originalData: document.data,
-                documentType: document.type,
-                uploadTimestamp: serverTimestamp(),
-                source: 'json-upload',
-                uploadId: document.id
-              }
-              
-              // If it's a simple value, store it directly
-              if (document.type === 'string' || document.type === 'number' || document.type === 'boolean') {
-                documentData.value = document.value
-                documentData.dataType = document.type
-              }
-              
-              // If it's an object, store its keys
-              if (document.type === 'object' && document.keys) {
-                documentData.objectKeys = document.keys
-                documentData.objectSize = document.keys.length
-              }
-            }
-            
-            // Debug logging for first few products
-            if (successCount < 3) {
-              console.log('Uploading product:', {
-                originalProduct: product,
-                enhancedProduct: productData,
-                detectedCategory: detectedCategory
-              })
-            }
-            
-            const docRef = doc(collection(db, 'products'))
-            batch.set(docRef, documentData)
-            successCount++
-            processedCount++
-            
-            // Show progress every 50 documents
-            if (processedCount % 50 === 0) {
-              console.log(`Progress: ${processedCount}/${documents.length} documents processed`)
-            }
-          } catch (error) {
-            errorCount++
-            const documentName = document.id || `Document ${index + i + 1}`
-            errors.push(`${documentName}: ${error.message}`)
-            console.error(`Error processing document ${index + i + 1}:`, error)
-          }
+       // Line 690 के आसपास का code ऐसा होना चाहिए:
+batchDocuments.forEach((document, index) => {
+  try {
+    // For documents that contain actual product data, enhance with category detection
+    let documentData = {}
+    let detectedCategory = { category: 'Other', subcategory: 'General', confidence: 0.1 }
+    
+    if (document.type === 'product' || document.type === 'item' || document.type === 'data_item') {
+      // This looks like product data, apply product enhancement
+      const product = document.data  // ✅ product variable define करें
+      detectedCategory = product.category ? 
+        { category: product.category, subcategory: product.subCategory || product.subcategory || 'General', confidence: 1.0 } :
+        detectCategory(product);
+      
+      documentData = {
+        ...product,
+        // Normalize product name field for dashboard display
+        name: product.name || product.title || product.productName || product.product_name || 'Unknown Product',
+        // Add or override category fields - ensure proper field names for dashboard display
+        category: product.category || product.Category || detectedCategory.category,
+        subCategory: product.subCategory || product.subcategory || product.SubCategory || product.Subcategory || detectedCategory.subcategory,
+        // Ensure price field exists for dashboard display
+        price: product.price || product.Price || product.sellingPrice || product.selling_price || 0,
+        categoryConfidence: detectedCategory.confidence,
+        categoryAutoDetected: !product.category && !product.Category,
+        // Add metadata
+        uploadedAt: serverTimestamp(),
+        source: 'json-upload',
+        documentType: document.type,
+        originalIndex: document.originalIndex
+      }
+
+      // ✅ अब debug logging सही होगा
+      if (successCount < 3) {
+        console.log('Uploading product:', {
+          originalProduct: product,  // ✅ अब product defined है
+          enhancedProduct: documentData,  // ✅ productData की जगह documentData use करें
+          detectedCategory: detectedCategory
         })
+      }
+    } else {
+      // This is raw data, upload as-is with metadata
+      documentData = {
+        originalData: document.data,
+        documentType: document.type,
+        uploadTimestamp: serverTimestamp(),
+        source: 'json-upload',
+        uploadId: document.id
+      }
+      
+      // If it's a simple value, store it directly
+      if (document.type === 'string' || document.type === 'number' || document.type === 'boolean') {
+        documentData.value = document.value
+        documentData.dataType = document.type
+      }
+      
+      // If it's an object, store its keys
+      if (document.type === 'object' && document.keys) {
+        documentData.objectKeys = document.keys
+        documentData.objectSize = document.keys.length
+      }
+    }
+    
+    const docRef = doc(collection(db, 'products'))
+    batch.set(docRef, documentData)
+    successCount++
+    processedCount++
+    
+    // Show progress every 50 documents
+    if (processedCount % 50 === 0) {
+      console.log(`Progress: ${processedCount}/${documents.length} documents processed`)
+    }
+  } catch (error) {
+    errorCount++
+    const documentName = document.id || `Document ${index + i + 1}`
+    errors.push(`${documentName}: ${error.message}`)
+    console.error(`Error processing document ${index + i + 1}:`, error)
+  }
+})
         
         try {
           await batch.commit()
@@ -732,15 +734,15 @@ const JsonBulkUpload = () => {
       console.log(`Upload completed in ${duration} seconds (${(successCount / duration).toFixed(2)} products/second)`)
       
       // Update upload history
-      const newUpload = {
-        id: Date.now(),
-        filename: uploadedFile.name,
-        uploadDate: new Date().toLocaleString(),
-        status: errorCount === 0 ? 'success' : errorCount < products.length ? 'partial' : 'error',
-        recordsProcessed: products.length,
-        recordsSuccess: successCount,
-        recordsError: errorCount
-      }
+     const newUpload = {
+  id: Date.now(),
+  filename: uploadedFile.name,
+  uploadDate: new Date().toLocaleString(),
+  status: errorCount === 0 ? 'success' : errorCount < documents.length ? 'partial' : 'error',  // ✅ documents.length
+  recordsProcessed: documents.length,  // ✅ documents.length
+  recordsSuccess: successCount,
+  recordsError: errorCount
+}
       
       setUploadHistory(prev => [newUpload, ...prev])
       

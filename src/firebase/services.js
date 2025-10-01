@@ -611,19 +611,36 @@ export const messageService = {
   // Get messages for a specific conversation
   async getMessages(conversationId) {
     try {
-      const q = query(
-        collection(db, 'messages'),
-        where('conversationId', '==', conversationId),
-        orderBy('timestamp', 'asc')
-      );
-      const querySnapshot = await getDocs(q);
-      const messages = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      return messages;
+      // Try the new subcollection structure first
+      try {
+        const messagesRef = collection(db, 'conversations', conversationId, 'messages');
+        const q = query(messagesRef, orderBy('timestamp', 'asc'));
+        const querySnapshot = await getDocs(q);
+        const messages = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        console.log(`✅ Found ${messages.length} messages in subcollection for conversation ${conversationId}`);
+        return messages;
+      } catch (subcollectionError) {
+        console.log('🔄 Subcollection not found, trying old structure...');
+        
+        // Fallback to old structure
+        const q = query(
+          collection(db, 'messages'),
+          where('conversationId', '==', conversationId),
+          orderBy('timestamp', 'asc')
+        );
+        const querySnapshot = await getDocs(q);
+        const messages = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        console.log(`✅ Found ${messages.length} messages in old structure for conversation ${conversationId}`);
+        return messages;
+      }
     } catch (error) {
-      console.error('Error fetching messages:', error);
+      console.error('❌ Error fetching messages:', error);
       throw error;
     }
   },
@@ -687,24 +704,54 @@ export const messageService = {
   // Listen to real-time messages
   subscribeToMessages(conversationId, callback) {
     console.log('📡 Setting up message subscription for conversation:', conversationId);
-    const q = query(
-      collection(db, 'messages'),
-      where('conversationId', '==', conversationId),
-      orderBy('timestamp', 'asc')
-    );
     
-    return onSnapshot(q, (querySnapshot) => {
-      console.log('📨 Message snapshot received:', querySnapshot.size, 'messages');
-      const messages = querySnapshot.docs.map(doc => {
-        const messageData = { id: doc.id, ...doc.data() };
-        console.log('💬 Message data:', messageData);
-        return messageData;
+    // Fallback function for old message structure
+    const fallbackToOldMessageStructure = (conversationId, callback) => {
+      console.log('🔄 Falling back to old message structure');
+      const q = query(
+        collection(db, 'messages'),
+        where('conversationId', '==', conversationId),
+        orderBy('timestamp', 'asc')
+      );
+      
+      return onSnapshot(q, (querySnapshot) => {
+        console.log('📨 Message snapshot received from old structure:', querySnapshot.size, 'messages');
+        const messages = querySnapshot.docs.map(doc => {
+          const messageData = { id: doc.id, ...doc.data() };
+          console.log('💬 Message data from old structure:', messageData);
+          return messageData;
+        });
+        console.log('📋 All messages for conversation from old structure:', messages);
+        callback(messages);
+      }, (error) => {
+        console.error('❌ Error in old message subscription:', error);
+        callback([]);
       });
-      console.log('📋 All messages for conversation:', messages);
-      callback(messages);
-    }, (error) => {
-      console.error('❌ Error in message subscription:', error);
-    });
+    };
+    
+    // Try the new subcollection structure first (conversations/{conversationId}/messages)
+    try {
+      const messagesRef = collection(db, 'conversations', conversationId, 'messages');
+      const q = query(messagesRef, orderBy('timestamp', 'asc'));
+      
+      return onSnapshot(q, (querySnapshot) => {
+        console.log('📨 Message snapshot received from subcollection:', querySnapshot.size, 'messages');
+        const messages = querySnapshot.docs.map(doc => {
+          const messageData = { id: doc.id, ...doc.data() };
+          console.log('💬 Message data from subcollection:', messageData);
+          return messageData;
+        });
+        console.log('📋 All messages for conversation from subcollection:', messages);
+        callback(messages);
+      }, (error) => {
+        console.error('❌ Error in subcollection message subscription:', error);
+        // Fallback to old structure
+        fallbackToOldMessageStructure(conversationId, callback);
+      });
+    } catch (error) {
+      console.error('❌ Error setting up subcollection subscription, falling back to old structure:', error);
+      return fallbackToOldMessageStructure(conversationId, callback);
+    }
   },
 
   // Listen to real-time conversations
