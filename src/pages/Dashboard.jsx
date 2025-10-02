@@ -770,75 +770,79 @@ const Dashboard = () => {
                   <th className="px-1 md:px-2 py-1 text-left text-xs font-medium text-gray-300 w-8">Actions</th>
                 </tr>
               </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td className="px-1 md:px-2 py-1">
-                      <div className="flex items-center space-x-1">
-                        <div className="min-w-0 flex-1">
-                          <div className="h-2 bg-gray-600 rounded animate-pulse w-16 mb-1"></div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-1 md:px-2 py-1 hidden sm:table-cell">
-                      <div className="h-2 bg-gray-600 rounded animate-pulse w-12"></div>
-                    </td>
-                    <td className="px-1 md:px-2 py-1 hidden md:table-cell">
-                      <div className="h-2 bg-gray-600 rounded animate-pulse w-14"></div>
-                    </td>
-                    <td className="px-1 md:px-2 py-1 hidden sm:table-cell">
-                      <div className="h-2 bg-gray-600 rounded animate-pulse w-8"></div>
-                    </td>
-                    <td className="px-1 md:px-2 py-1">
-                      <div className="flex items-center space-x-0">
-                        <div className="w-3 h-3 bg-gray-600 rounded animate-pulse"></div>
-                        <div className="w-3 h-3 bg-gray-600 rounded animate-pulse"></div>
-                      </div>
-                    </td>
-                  </tr>
-                ) : products.length === 0 ? (
-                  <tr>
-                    <td colSpan="5" className="px-1 md:px-2 py-1 text-center text-gray-400 text-[9px]">
-                      No products available
-                    </td>
-                  </tr>
-                ) : (
-                  products.map((product) => (
-                    <tr key={product.id} className="border-t border-gray-700">
-                      <td className="px-1 md:px-2 py-1">
-                        <div className="flex items-center space-x-1">
-                          <div className="min-w-0 flex-1">
-                            <span className="text-white text-[9px] block leading-tight break-words truncate font-medium">
-                              {product.name.length > 15 ? product.name.substring(0, 15) + '...' : product.name}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-1 md:px-2 py-1 text-gray-300 text-[9px] leading-tight hidden sm:table-cell">{product.category.substring(0, 8)}{product.category.length > 8 && '...'}</td>
-                      <td className="px-1 md:px-2 py-1 text-gray-300 text-[9px] leading-tight hidden md:table-cell">{product.subCategory.substring(0, 10)}{product.subCategory.length > 10 && '...'}</td>
-                      <td className="px-1 md:px-2 py-1 text-gray-300 text-[9px] hidden sm:table-cell">₹{product.price}</td>
-                      <td className="px-1 md:px-2 py-1">
-                        <div className="flex items-center space-x-0">
-                          <button 
-                            onClick={() => handleEdit(product)}
-                            className="text-blue-400 hover:text-blue-300 p-0"
-                            disabled={loading}
-                          >
-                            <Edit size={10} className="md:w-2 md:h-2" />
-                          </button>
-                          <button 
-                            onClick={() => handleDelete(product.id)}
-                            className="text-red-400 hover:text-red-300 p-0"
-                            disabled={loading}
-                          >
-                            <Trash2 size={10} className="md:w-2 md:h-2" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
+             <tbody>
+  {loading ? (
+    <tr>
+      <td className="px-1 md:px-2 py-1">
+        <div className="flex items-center space-x-1">
+          <div className="min-w-0 flex-1">
+            <div className="h-2 bg-gray-600 rounded animate-pulse w-16 mb-1"></div>
+          </div>
+        </div>
+      </td>
+      <td className="px-1 md:px-2 py-1 hidden sm:table-cell">
+        <div className="h-2 bg-gray-600 rounded animate-pulse w-12"></div>
+      </td>
+      <td className="px-1 md:px-2 py-1 hidden md:table-cell">
+        <div className="h-2 bg-gray-600 rounded animate-pulse w-14"></div>
+      </td>
+      <td className="px-1 md:px-2 py-1 hidden sm:table-cell">
+        <div className="h-2 bg-gray-600 rounded animate-pulse w-8"></div>
+      </td>
+      <td className="px-1 md:px-2 py-1">
+        <div className="flex items-center space-x-0">
+          <div className="w-3 h-3 bg-gray-600 rounded animate-pulse"></div>
+          <div className="w-3 h-3 bg-gray-600 rounded animate-pulse"></div>
+        </div>
+      </td>
+    </tr>
+  ) : products && products.length > 0 ? (
+    products.map((product) => (
+      <tr key={product.id} className="border-t border-gray-700">
+        <td className="px-1 md:px-2 py-1">
+          <div className="flex items-center space-x-1">
+            <div className="min-w-0 flex-1">
+              <span className="text-white text-[9px] block leading-tight break-words truncate font-medium">
+                {product.name && product.name.length > 15 ? product.name.substring(0, 15) + '...' : product.name}
+              </span>
+            </div>
+          </div>
+        </td>
+        <td className="px-1 md:px-2 py-1 text-gray-300 text-[9px] leading-tight hidden sm:table-cell">
+          {product.category ? (product.category.substring(0, 8) + (product.category.length > 8 ? '...' : '')) : 'No Category'}
+        </td>
+        <td className="px-1 md:px-2 py-1 text-gray-300 text-[9px] leading-tight hidden md:table-cell">
+          {product.subCategory ? (product.subCategory.substring(0, 10) + (product.subCategory.length > 10 ? '...' : '')) : 'No SubCategory'}
+        </td>
+        <td className="px-1 md:px-2 py-1 text-gray-300 text-[9px] hidden sm:table-cell">₹{product.price}</td>
+        <td className="px-1 md:px-2 py-1">
+          <div className="flex items-center space-x-0">
+            <button 
+              onClick={() => handleEdit(product)}
+              className="text-blue-400 hover:text-blue-300 p-0"
+              disabled={loading}
+            >
+              <Edit size={10} className="md:w-2 md:h-2" />
+            </button>
+            <button 
+              onClick={() => handleDelete(product.id)}
+              className="text-red-400 hover:text-red-300 p-0"
+              disabled={loading}
+            >
+              <Trash2 size={10} className="md:w-2 md:h-2" />
+            </button>
+          </div>
+        </td>
+      </tr>
+    ))
+  ) : (
+    <tr>
+      <td colSpan="5" className="px-1 md:px-2 py-1 text-center text-gray-400 text-[9px]">
+        No products available
+      </td>
+    </tr>
+  )}
+</tbody>
             </table>
           </div>
         </div>
