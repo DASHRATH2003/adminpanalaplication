@@ -11,7 +11,8 @@ import {
   onSnapshot,
   serverTimestamp,
   where,
-  limit
+  limit,
+  writeBatch
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from './config';
@@ -270,6 +271,30 @@ export const orderService = {
               status: orderData.status || orderData.orderStatus || 'pending'
             });
           });
+
+          // Include cancelled orders stored under users/{userId}/orderCancel
+          try {
+            const cancelSnapshot = await getDocs(collection(db, 'users', userId, 'orderCancel'));
+            console.log(`User ${userId} has ${cancelSnapshot.size} cancelled orders (orderCancel)`);
+            cancelSnapshot.forEach(cancelDoc => {
+              const cancelData = cancelDoc.data();
+              orders.push({
+                id: cancelDoc.id,
+                customerId: userId,
+                customerName: userData.name || userData.email || 'Unknown Customer',
+                customerEmail: userData.email || '',
+                customerPhone: userData.phone || '',
+                ...cancelData,
+                // Map requestedAt to createdAt for UI date display
+                createdAt: cancelData.requestedAt || cancelData.createdAt || null,
+                // Ensure cancelled status for filtering
+                status: 'cancelled',
+                orderStatus: cancelData.orderStatus || 'cancelled'
+              });
+            });
+          } catch (cancelError) {
+            console.warn(`Error fetching cancelled orders for user ${userId}:`, cancelError.message);
+          }
         } catch (userError) {
           console.warn(`Error fetching orders for user ${userId}:`, userError.message);
           // Continue with other users even if one fails
@@ -320,6 +345,30 @@ export const orderService = {
               });
             }
           });
+
+          // Include cancelled orders from users/{userId}/orderCancel when status is 'cancelled'
+          if (status === 'cancelled') {
+            try {
+              const cancelSnapshot = await getDocs(collection(db, 'users', userId, 'orderCancel'));
+              console.log(`User ${userId} has ${cancelSnapshot.size} cancelled orders (orderCancel)`);
+              cancelSnapshot.forEach(cancelDoc => {
+                const cancelData = cancelDoc.data();
+                orders.push({
+                  id: cancelDoc.id,
+                  customerId: userId,
+                  customerName: userData.name || userData.email || 'Unknown Customer',
+                  customerEmail: userData.email || '',
+                  customerPhone: userData.phone || '',
+                  ...cancelData,
+                  createdAt: cancelData.requestedAt || cancelData.createdAt || null,
+                  status: 'cancelled',
+                  orderStatus: cancelData.orderStatus || 'cancelled'
+                });
+              });
+            } catch (cancelError) {
+              console.warn(`Error fetching cancelled orders for user ${userId}:`, cancelError.message);
+            }
+          }
         } catch (userError) {
           console.warn(`Error fetching orders for user ${userId}:`, userError.message);
           // Continue with other users even if one fails
@@ -419,6 +468,63 @@ export const orderService = {
       }
     } catch (error) {
       console.error('Error deleting order:', error);
+      throw error;
+    }
+  },
+
+  // Delete ALL orders across all customers and fallback orders collection
+  async deleteAll() {
+    try {
+      console.log('Deleting ALL orders from Firebase...');
+      let totalDeleted = 0;
+
+      // 1) Delete orders under each user
+      const usersSnapshot = await getDocs(collection(db, 'users'));
+      for (const userDoc of usersSnapshot.docs) {
+        const userId = userDoc.id;
+        try {
+          const ordersSnapshot = await getDocs(collection(db, 'users', userId, 'orders'));
+          if (!ordersSnapshot.empty) {
+            // Process in chunks to avoid batch limits
+            const allDocs = ordersSnapshot.docs;
+            const chunkSize = 400;
+            for (let i = 0; i < allDocs.length; i += chunkSize) {
+              const chunk = allDocs.slice(i, i + chunkSize);
+              const batch = writeBatch(db);
+              chunk.forEach((docSnapshot) => batch.delete(docSnapshot.ref));
+              await batch.commit();
+            }
+            totalDeleted += allDocs.length;
+            console.log(`Deleted ${allDocs.length} orders for user ${userId}`);
+          }
+        } catch (err) {
+          console.warn(`Error deleting orders for user ${userId}:`, err.message);
+        }
+      }
+
+      // 2) Delete any orders in fallback 'orders' collection
+      try {
+        const ordersCollection = collection(db, 'orders');
+        const ordersSnapshot = await getDocs(ordersCollection);
+        if (!ordersSnapshot.empty) {
+          const allDocs = ordersSnapshot.docs;
+          const chunkSize = 400;
+          for (let i = 0; i < allDocs.length; i += chunkSize) {
+            const chunk = allDocs.slice(i, i + chunkSize);
+            const batch = writeBatch(db);
+            chunk.forEach((docSnapshot) => batch.delete(docSnapshot.ref));
+            await batch.commit();
+          }
+          totalDeleted += allDocs.length;
+          console.log(`Deleted ${allDocs.length} orders from fallback 'orders' collection`);
+        }
+      } catch (err) {
+        console.warn('Error deleting from fallback orders collection:', err.message);
+      }
+
+      return { success: true, totalDeleted };
+    } catch (error) {
+      console.error('Error deleting all orders:', error);
       throw error;
     }
   },

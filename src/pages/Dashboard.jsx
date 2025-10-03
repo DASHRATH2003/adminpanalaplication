@@ -150,37 +150,83 @@ const Dashboard = () => {
         console.log('Subcategory keys:', Object.keys(subCategoriesData[0]));
       }
       
-      // Map category and subcategory IDs to names in products
+      // Normalize product fields for consistent dashboard display
       const productsWithNames = productsData.map(product => {
         let categoryName = 'No Category';
         let subCategoryName = 'No SubCategory';
-        
-        // Check if product already has category name
-        if (product.category && typeof product.category === 'string') {
-          categoryName = product.category;
+
+        const original = product.originalData || {};
+
+        const displayName = (
+          (typeof product.name === 'string' && product.name) ||
+          (typeof product.title === 'string' && product.title) ||
+          (typeof product.productName === 'string' && product.productName) ||
+          (typeof product.product_name === 'string' && product.product_name) ||
+          (typeof original.name === 'string' && original.name) ||
+          (typeof original.title === 'string' && original.title) ||
+          (typeof original.productName === 'string' && original.productName) ||
+          (typeof original.product_name === 'string' && original.product_name) ||
+          'Unknown Product'
+        );
+
+        if (typeof product.category === 'string' && product.category.trim()) {
+          categoryName = product.category.trim();
+        } else if (typeof product.Category === 'string' && product.Category.trim()) {
+          categoryName = product.Category.trim();
         } else if (product.categoryId) {
-          // Find category by ID
           const category = categoriesData.find(cat => cat.id === product.categoryId);
           categoryName = category ? (category.name || category.categoryName || 'Unknown Category') : 'Category Not Found';
-        } else if (product.categoryName) {
-          categoryName = product.categoryName;
+        } else if (typeof product.categoryName === 'string' && product.categoryName.trim()) {
+          categoryName = product.categoryName.trim();
+        } else if (typeof original.category === 'string' && original.category.trim()) {
+          categoryName = original.category.trim();
         }
-        
-        // Check if product already has subcategory name
-        if (product.subCategory && typeof product.subCategory === 'string') {
-          subCategoryName = product.subCategory;
+
+        if (typeof product.subCategory === 'string' && product.subCategory.trim()) {
+          subCategoryName = product.subCategory.trim();
+        } else if (typeof product.subcategory === 'string' && product.subcategory.trim()) {
+          subCategoryName = product.subcategory.trim();
+        } else if (typeof product.SubCategory === 'string' && product.SubCategory.trim()) {
+          subCategoryName = product.SubCategory.trim();
+        } else if (typeof product.Subcategory === 'string' && product.Subcategory.trim()) {
+          subCategoryName = product.Subcategory.trim();
         } else if (product.subCategoryId) {
-          // Find subcategory by ID
           const subCategory = subCategoriesData.find(subCat => subCat.id === product.subCategoryId);
           subCategoryName = subCategory ? (subCategory.name || subCategory.subCategoryName || 'Unknown SubCategory') : 'SubCategory Not Found';
-        } else if (product.subCategoryName) {
-          subCategoryName = product.subCategoryName;
+        } else if (typeof product.subCategoryName === 'string' && product.subCategoryName.trim()) {
+          subCategoryName = product.subCategoryName.trim();
+        } else if (typeof original.subCategory === 'string' && original.subCategory.trim()) {
+          subCategoryName = original.subCategory.trim();
+        } else if (typeof original.subcategory === 'string' && original.subcategory.trim()) {
+          subCategoryName = original.subcategory.trim();
         }
-        
+
+        const priceRaw = (
+          product.price ??
+          product.Price ??
+          product.offerPrice ??
+          product.sellingPrice ??
+          product.selling_price ??
+          original.price ??
+          original.Price ??
+          original.offerPrice ??
+          original.sellingPrice ??
+          original.selling_price ??
+          0
+        );
+        let normalizedPrice = 0;
+        if (priceRaw !== null && priceRaw !== undefined) {
+          const str = priceRaw.toString();
+          const num = parseFloat(str.replace(/[^0-9.]/g, ''));
+          normalizedPrice = isNaN(num) ? 0 : num;
+        }
+
         return {
           ...product,
+          name: displayName,
           category: categoryName,
-          subCategory: subCategoryName
+          subCategory: subCategoryName,
+          price: normalizedPrice
         };
       });
       

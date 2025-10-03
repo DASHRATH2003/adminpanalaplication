@@ -107,17 +107,40 @@ const Orders = () => {
 
   const filterOrders = () => {
     console.log(`Filtering orders. Selected filter: ${selectedFilter}, Total orders: ${orders.length}`);
+    // Helper: normalize various date formats to milliseconds for sorting
+    const getOrderDateMs = (date) => {
+      if (!date) return 0;
+      try {
+        // Firebase Timestamp
+        if (typeof date === 'object' && date.seconds) {
+          return date.seconds * 1000;
+        }
+        // JS Date or parseable string/number
+        const d = new Date(date);
+        const t = d.getTime();
+        return isNaN(t) ? 0 : t;
+      } catch (e) {
+        return 0;
+      }
+    };
+
+    const getOrderDateValue = (order) => {
+      return getOrderDateMs(order?.createdAt || order?.orderDate || order?.date);
+    };
+
     if (selectedFilter === 'all') {
-      setFilteredOrders(orders);
-      console.log('Showing all orders:', orders.length);
+      const sortedAll = [...orders].sort((a, b) => getOrderDateValue(b) - getOrderDateValue(a));
+      setFilteredOrders(sortedAll);
+      console.log('Showing all orders (sorted by date desc):', sortedAll.length);
     } else {
       const filtered = orders.filter(order => {
         const matches = order.status === selectedFilter;
         console.log(`Order ${order.id}: status=${order.status}, filter=${selectedFilter}, matches=${matches}`);
         return matches;
       });
-      console.log(`Filtered orders for ${selectedFilter}:`, filtered.length);
-      setFilteredOrders(filtered);
+      const sortedFiltered = filtered.sort((a, b) => getOrderDateValue(b) - getOrderDateValue(a));
+      console.log(`Filtered orders for ${selectedFilter} (sorted by date desc):`, sortedFiltered.length);
+      setFilteredOrders(sortedFiltered);
     }
   };
 
@@ -177,6 +200,23 @@ const Orders = () => {
       } catch (error) {
         console.error('Error deleting order:', error);
         alert('Error deleting order');
+      }
+    }
+  };
+
+  const handleDeleteAllOrders = async () => {
+    if (window.confirm('Are you sure you want to DELETE ALL orders? This cannot be undone.')) {
+      try {
+        setLoading(true);
+        const result = await orderService.deleteAll();
+        alert(`Deleted ${result.totalDeleted} orders from Firebase`);
+        await fetchOrders();
+        await refreshOrders();
+      } catch (error) {
+        console.error('Error deleting all orders:', error);
+        alert(`Error deleting all orders: ${error.message}`);
+      } finally {
+        setLoading(false);
       }
     }
   };
@@ -435,25 +475,72 @@ const Orders = () => {
     return 0;
   };
 
-  // Extract SKUs from order products/items
+  const getSKUFromVariantList = (obj, preferredSize) => {
+    if (obj && Array.isArray(obj.sizevariants)) {
+      if (preferredSize) {
+        const match = obj.sizevariants.find(v => ((v.size || v.label) === preferredSize) && v.sku);
+        if (match && match.sku) return match.sku;
+      }
+      const first = obj.sizevariants.find(v => v.sku);
+      if (first && first.sku) return first.sku;
+    }
+    return null;
+  };
+
+  const getBaseSKU = (obj) => {
+    if (!obj || typeof obj !== 'object') return null;
+    const keys = ['basesku', 'baseSku', 'baseSKU', 'base_sku'];
+    for (const k of keys) {
+      if (obj[k] && typeof obj[k] === 'string' && obj[k].trim().length > 0) {
+        return obj[k];
+      }
+    }
+    return null;
+  };
+
+  const getSKUFromItem = (item) => {
+    if (!item) return null;
+    if (item.sku) return item.sku;
+    // Non-clothing base SKU on the item itself
+    const itemBase = getBaseSKU(item);
+    if (itemBase) return itemBase;
+    const preferredSize = item.size || item.selectedSize || (item.variant && item.variant.size) || item.variantSize;
+    const itemVariantSku = getSKUFromVariantList(item, preferredSize);
+    if (itemVariantSku) return itemVariantSku;
+    if (item.product && typeof item.product === 'object') {
+      const p = item.product;
+      if (p.sku) return p.sku;
+      const productBase = getBaseSKU(p);
+      if (productBase) return productBase;
+      const pPreferredSize = p.size || p.selectedSize || (p.variant && p.variant.size) || p.variantSize;
+      const productVariantSku = getSKUFromVariantList(p, pPreferredSize);
+      if (productVariantSku) return productVariantSku;
+    }
+    return null;
+  };
+
+  // Extract SKUs from order products/items (supports clothing sizevariants)
   const extractOrderSKUs = (order) => {
     const skus = [];
     
-    // Check products array first
     if (order.products && Array.isArray(order.products)) {
       order.products.forEach(product => {
-        if (product.sku) {
-          skus.push(product.sku);
+        let sku = product.sku;
+        if (!sku) {
+          const preferredSize = product.size || product.selectedSize || (product.variant && product.variant.size) || product.variantSize;
+          sku = getSKUFromVariantList(product, preferredSize);
         }
+        if (!sku) {
+          sku = getBaseSKU(product);
+        }
+        if (sku) skus.push(sku);
       });
     }
     
-    // Check items array (legacy)
     if (order.items && Array.isArray(order.items)) {
       order.items.forEach(item => {
-        if (item.sku) {
-          skus.push(item.sku);
-        }
+        const sku = getSKUFromItem(item);
+        if (sku) skus.push(sku);
       });
     }
     
@@ -563,6 +650,14 @@ const Orders = () => {
           >
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
             <span>Refresh</span>
+          </button>
+          <button
+            onClick={handleDeleteAllOrders}
+            disabled={loading}
+            className="bg-red-600 hover:bg-red-700 disabled:bg-gray-800 text-white px-3 py-1 rounded text-sm flex items-center space-x-1 transition-colors"
+          >
+            <Trash2 size={16} />
+            <span>Delete All Orders</span>
           </button>
         </div>
       </div>
@@ -1002,7 +1097,7 @@ const Orders = () => {
                   </div>
                   <div>
                     <p className="text-sm text-gray-400">Phone</p>
-                    <p className="text-lg text-white">{viewingOrder.customerPhone || 'N/A'}</p>
+                    <p className="text-lg text-white">{viewingOrder.customerPhone || viewingOrder.phoneNumber || 'N/A'}</p>
                   </div>
                 </div>
               </div>
@@ -1017,7 +1112,7 @@ const Orders = () => {
                   </div>
                   <div>
                     <p className="text-sm text-gray-400">Order Date</p>
-                    <p className="text-lg text-white">{formatDate(viewingOrder.createdAt)}</p>
+                    <p className="text-lg text-white">{formatDate(viewingOrder.createdAt || viewingOrder.orderDate)}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-400">Payment Method</p>
@@ -1085,11 +1180,11 @@ const Orders = () => {
                 </div>
               )}
 
-              {/* Shipping Address */}
-              {viewingOrder.shippingAddress && (
+              {/* Address */}
+              {(viewingOrder.shippingAddress || viewingOrder.address) && (
                 <div className="bg-gray-700 rounded-lg p-4">
-                  <h4 className="text-lg font-semibold text-white mb-3">Shipping Address</h4>
-                  <p className="text-lg text-white">{viewingOrder.shippingAddress}</p>
+                  <h4 className="text-lg font-semibold text-white mb-3">Address</h4>
+                  <p className="text-lg text-white">{viewingOrder.shippingAddress || viewingOrder.address}</p>
                 </div>
               )}
             </div>

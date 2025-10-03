@@ -396,8 +396,14 @@ const JsonBulkUpload = () => {
   const validateJson = (jsonString) => {
     try {
       console.log('Starting JSON validation...')
-      const data = JSON.parse(jsonString)
-      console.log('JSON parsed successfully')
+      let data
+      try {
+        data = JSON.parse(jsonString)
+        console.log('JSON parsed successfully')
+      } catch (parseErr) {
+        console.warn('JSON parse failed during validation, treating as raw text document:', parseErr?.message)
+        data = { _rawText: jsonString }
+      }
       
       const results = {
         isValid: true,
@@ -491,10 +497,17 @@ const JsonBulkUpload = () => {
         })
       }
 
-      // Always valid if we have at least one document
+      // Always valid: even empty input is allowed, show a warning only
       if (documents.length === 0) {
-        results.errors.push('No documents found in the JSON data')
-        results.isValid = false
+        results.warnings.push('No documents detected; upload will store an empty placeholder')
+        results.isValid = true
+        // Create an empty placeholder document
+        documents = [{
+          id: `empty_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          data: { _empty: true },
+          type: 'empty'
+        }]
+        results.recordCount = 1
       }
 
       setValidationResults(results)
@@ -502,19 +515,16 @@ const JsonBulkUpload = () => {
     } catch (error) {
       console.error('JSON validation error:', error)
       setValidationResults({
-        isValid: false,
-        errors: [`Invalid JSON format: ${error.message}`],
-        warnings: [],
-        recordCount: 0
+        isValid: true,
+        errors: [],
+        warnings: [`Validation exception handled: ${error.message}`],
+        recordCount: 1
       })
     }
   }
 
   const processUpload = async () => {
-    if (!validationResults?.isValid) {
-      alert('Please fix validation errors before processing')
-      return
-    }
+    // Fully permissive: do not block processing based on validation
 
     setIsProcessing(true)
     setMessage('')
@@ -555,8 +565,15 @@ const JsonBulkUpload = () => {
         return
       }
       
-      const data = JSON.parse(jsonData)
-      console.log('JSON data parsed successfully')
+      let data
+      try {
+        data = JSON.parse(jsonData)
+        console.log('JSON data parsed successfully')
+      } catch (parseErr) {
+        console.warn('JSON parse failed, storing raw text as document:', parseErr?.message)
+        // Fallback: treat the entire text as a single document
+        data = { _rawText: jsonData }
+      }
       
       // Convert ANY JSON data to upload format - treat everything as documents
       let documents = []
@@ -635,63 +652,70 @@ const JsonBulkUpload = () => {
        // Line 690 के आसपास का code ऐसा होना चाहिए:
 batchDocuments.forEach((document, index) => {
   try {
-    // For documents that contain actual product data, enhance with category detection
+    // Decide behavior based on file type: for .json uploads, store ONLY original fields
+    const isJsonUpload = uploadedFile && uploadedFile.name.toLowerCase().endsWith('.json')
     let documentData = {}
-    let detectedCategory = { category: 'Other', subcategory: 'General', confidence: 0.1 }
-    
-    if (document.type === 'product' || document.type === 'item' || document.type === 'data_item') {
-      // This looks like product data, apply product enhancement
-      const product = document.data  // ✅ product variable define करें
-      detectedCategory = product.category ? 
-        { category: product.category, subcategory: product.subCategory || product.subcategory || 'General', confidence: 1.0 } :
-        detectCategory(product);
-      
-      documentData = {
-        ...product,
-        // Normalize product name field for dashboard display
-        name: product.name || product.title || product.productName || product.product_name || 'Unknown Product',
-        // Add or override category fields - ensure proper field names for dashboard display
-        category: product.category || product.Category || detectedCategory.category,
-        subCategory: product.subCategory || product.subcategory || product.SubCategory || product.Subcategory || detectedCategory.subcategory,
-        // Ensure price field exists for dashboard display
-        price: product.price || product.Price || product.sellingPrice || product.selling_price || 0,
-        categoryConfidence: detectedCategory.confidence,
-        categoryAutoDetected: !product.category && !product.Category,
-        // Add metadata
-        uploadedAt: serverTimestamp(),
-        source: 'json-upload',
-        documentType: document.type,
-        originalIndex: document.originalIndex
-      }
 
-      // ✅ अब debug logging सही होगा
-      if (successCount < 3) {
-        console.log('Uploading product:', {
-          originalProduct: product,  // ✅ अब product defined है
-          enhancedProduct: documentData,  // ✅ productData की जगह documentData use करें
-          detectedCategory: detectedCategory
-        })
+    if (isJsonUpload) {
+      // Strict mode for JSON uploads: write exactly what exists in the JSON
+      const original = document.data
+      if (original && typeof original === 'object' && !Array.isArray(original)) {
+        documentData = original
+      } else {
+        // Firestore documents must be objects; wrap primitives minimally
+        documentData = { value: original }
       }
     } else {
-      // This is raw data, upload as-is with metadata
-      documentData = {
-        originalData: document.data,
-        documentType: document.type,
-        uploadTimestamp: serverTimestamp(),
-        source: 'json-upload',
-        uploadId: document.id
-      }
-      
-      // If it's a simple value, store it directly
-      if (document.type === 'string' || document.type === 'number' || document.type === 'boolean') {
-        documentData.value = document.value
-        documentData.dataType = document.type
-      }
-      
-      // If it's an object, store its keys
-      if (document.type === 'object' && document.keys) {
-        documentData.objectKeys = document.keys
-        documentData.objectSize = document.keys.length
+      // Non-JSON uploads (CSV/Excel) keep enhancement for dashboard compatibility
+      let detectedCategory = { category: 'Other', subcategory: 'General', confidence: 0.1 }
+
+      if (document.type === 'product' || document.type === 'item' || document.type === 'data_item') {
+        const product = document.data
+        detectedCategory = product.category ?
+          { category: product.category, subcategory: product.subCategory || product.subcategory || 'General', confidence: 1.0 } :
+          detectCategory(product)
+
+        documentData = {
+          ...product,
+          name: product.name || product.title || product.productName || product.product_name || 'Unknown Product',
+          category: product.category || product.Category || detectedCategory.category,
+          subCategory: product.subCategory || product.subcategory || product.SubCategory || product.Subcategory || detectedCategory.subcategory,
+          price: product.price || product.Price || product.sellingPrice || product.selling_price || 0,
+          sku: (product.sku || product.SKU || product.baseSku || product.productId || product.productid || product.id || product.code || '').toString(),
+          categoryConfidence: detectedCategory.confidence,
+          categoryAutoDetected: !product.category && !product.Category,
+          uploadedAt: serverTimestamp(),
+          source: 'json-upload',
+          documentType: document.type,
+          originalIndex: document.originalIndex
+        }
+
+        if (successCount < 3) {
+          console.log('Uploading product:', {
+            originalProduct: product,
+            enhancedProduct: documentData,
+            detectedCategory: detectedCategory
+          })
+        }
+      } else {
+        // Raw data from non-JSON sources: wrap with metadata for traceability
+        documentData = {
+          originalData: document.data,
+          documentType: document.type,
+          uploadTimestamp: serverTimestamp(),
+          source: 'json-upload',
+          uploadId: document.id
+        }
+
+        if (document.type === 'string' || document.type === 'number' || document.type === 'boolean') {
+          documentData.value = document.value
+          documentData.dataType = document.type
+        }
+
+        if (document.type === 'object' && document.keys) {
+          documentData.objectKeys = document.keys
+          documentData.objectSize = document.keys.length
+        }
       }
     }
     
@@ -1104,9 +1128,22 @@ function detectSubcategory(category, name = "", description = "") {
   }
   
   // Check clothing subcategories
-  for (const [subcat, keywords] of Object.entries(SUBCATEGORY_KEYWORDS.clothing)) {
-    if (keywords.some(keyword => text.includes(keyword))) {
-      return subcat;
+  const clothingMap = SUBCATEGORY_KEYWORDS.clothing;
+  // Handle both array and object forms gracefully
+  if (Array.isArray(clothingMap)) {
+    // If it's an array of keywords, return the first matching keyword as subcategory
+    for (const keyword of clothingMap) {
+      if (typeof keyword === 'string' && text.includes(keyword.toLowerCase())) {
+        return keyword;
+      }
+    }
+  } else if (clothingMap && typeof clothingMap === 'object') {
+    // If it's an object of { subcat: [keywords...] }, check each list
+    for (const [subcat, keywords] of Object.entries(clothingMap)) {
+      const list = Array.isArray(keywords) ? keywords : [keywords];
+      if (list.some(kw => typeof kw === 'string' && text.includes(kw.toLowerCase()))) {
+        return subcat;
+      }
     }
   }
   
