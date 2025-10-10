@@ -175,6 +175,35 @@ const JsonBulkUpload = () => {
   const [uploadHistory, setUploadHistory] = useState([])
   const [existingProducts, setExistingProducts] = useState([])
 
+  // Fetch and display collection stats (used after deletions/uploads)
+  const fetchStats = async () => {
+    try {
+      const collectionsToCheck = ['products', 'items', 'documents', 'data']
+      const stats = []
+      for (const name of collectionsToCheck) {
+        try {
+          const snapshot = await getDocs(collection(db, name))
+          stats.push({ collection: name, count: snapshot.size })
+        } catch (err) {
+          console.error(`Error fetching stats for ${name}:`, err)
+          stats.push({ collection: name, error: err.message })
+        }
+      }
+      console.log('Post-deletion stats:', stats)
+      const productsStat = stats.find(s => s.collection === 'products')
+      if (productsStat && typeof productsStat.count === 'number') {
+        setMessage(prev => {
+          const remainMsg = `Products remaining: ${productsStat.count}`
+          return prev ? `${prev} | ${remainMsg}` : remainMsg
+        })
+      }
+      return stats
+    } catch (error) {
+      console.error('fetchStats error:', error)
+      return []
+    }
+  }
+
   // ---------- CSV/Excel Processing Functions ----------
   const processCSVExcelData = (data, sellerId = "") => {
     const columns = Object.keys(data[0] || {});
@@ -734,6 +763,7 @@ batchDocuments.forEach((document, index) => {
     errors.push(`${documentName}: ${error.message}`)
     console.error(`Error processing document ${index + i + 1}:`, error)
   }
+
 })
         
         try {
@@ -935,7 +965,7 @@ batchDocuments.forEach((document, index) => {
       console.log(`Total products deleted: ${totalDeleted}`)
       
       // Refresh stats after deletion
-      fetchStats()
+      await fetchStats()
       
     } catch (error) {
       console.error('Error during deletion process:', error)
