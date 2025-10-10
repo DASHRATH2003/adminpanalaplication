@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Send, Phone, Video, MoreVertical, User, Clock, Check, CheckCheck, Bell, BellOff, RefreshCw } from 'lucide-react';
+import { Search, Send, Phone, Video, MoreVertical, User, Clock, Check, CheckCheck, Bell, BellOff } from 'lucide-react';
 import { serverTimestamp } from "firebase/firestore";
 import { collection, getDocs, updateDoc, doc, getDoc, query, where, orderBy } from 'firebase/firestore';
 import { db } from '../firebase/config';
@@ -243,83 +243,9 @@ const Messages = () => {
     };
   }, []);
 
-  // Enhanced function to check for messages in both structures
-  const checkMessagesInBothStructures = async (conversationId) => {
-    console.log(`🔍 Checking messages in both structures for conversation: ${conversationId}`);
-    
-    try {
-      // Check subcollection structure first
-      const messagesRef = collection(db, 'conversations', conversationId, 'messages');
-      const subcollectionSnapshot = await getDocs(messagesRef);
-      
-      if (subcollectionSnapshot.size > 0) {
-        console.log(`✅ Found ${subcollectionSnapshot.size} messages in subcollection`);
-        const messages = subcollectionSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-        console.log('📋 Subcollection messages:', messages);
-        return { structure: 'subcollection', count: subcollectionSnapshot.size, messages };
-      }
-      
-      // Check old structure
-      const oldMessagesQuery = query(
-        collection(db, 'messages'),
-        where('conversationId', '==', conversationId),
-        orderBy('timestamp', 'asc')
-      );
-      const oldSnapshot = await getDocs(oldMessagesQuery);
-      
-      if (oldSnapshot.size > 0) {
-        console.log(`✅ Found ${oldSnapshot.size} messages in old structure`);
-        const messages = oldSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-        console.log('📋 Old structure messages:', messages);
-        return { structure: 'old', count: oldSnapshot.size, messages };
-      }
-      
-      console.log('❌ No messages found in either structure');
-      return { structure: 'none', count: 0, messages: [] };
-      
-    } catch (error) {
-      console.error('❌ Error checking message structures:', error);
-      return { structure: 'error', count: 0, messages: [] };
-    }
-  };
+  // Removed test-only message structure checker
 
-  // Auto-load support conversations when conversations are loaded
-  useEffect(() => {
-    if (conversations.length > 0) {
-      console.log('📋 Conversations loaded, checking for support conversations...');
-      
-      // Check if there's a specific support conversation we should auto-load
-      const targetSupportConv = conversations.find(conv => 
-        conv.id === 'support_NvqxrYIpOcYbGXLZhYEUjoPRZer2'
-      );
-      
-      if (targetSupportConv) {
-        console.log('🎯 Found target support conversation, auto-loading:', targetSupportConv);
-        setSelectedConversation(targetSupportConv);
-        loadMessages(targetSupportConv.id);
-      } else {
-        // If no specific conversation found, auto-load any support conversation with unread messages
-        const supportConversations = conversations.filter(conv => 
-          conv.id && conv.id.startsWith('support_')
-        );
-        
-        if (supportConversations.length > 0) {
-          const unreadSupportConv = supportConversations.find(conv => (conv.unreadCount || 0) > 0);
-          const conversationToLoad = unreadSupportConv || supportConversations[0];
-          
-          console.log('🎯 Auto-loading support conversation:', conversationToLoad);
-          setSelectedConversation(conversationToLoad);
-          loadMessages(conversationToLoad.id);
-        }
-      }
-    }
-  }, [conversations]);
+  // Removed auto-select of support conversations to respect admin's manual selection
 
   // Load messages when conversation is selected
   useEffect(() => {
@@ -339,70 +265,11 @@ const Messages = () => {
     }
   }, [users]);
 
-  // Direct Firebase check for specific user
-  const checkFirebaseDirectly = async () => {
-    try {
-      const userDocRef = doc(db, 'users', 'NvqxrYIpOcYbGXLZhYEUjoPRZer2');
-      const userDocSnap = await getDoc(userDocRef);
-      
-      if (userDocSnap.exists()) {
-        const userData = userDocSnap.data();
-        
-        // Check if token exists but might be hidden
-        if (userData.fcmToken || userData.token) {
-          // FCM token found
-        } else {
-          // No FCM token found
-        }
-        
-      } else {
-        // User document not found in Firebase
-      }
-      
-    } catch (error) {
-      console.error('❌ Error checking Firebase directly:', error);
-    }
-  };
+  // Removed test-only direct Firebase check
 
-  // Test function to load specific conversation
-  const testLoadSpecificConversation = () => {
-    const testConversation = {
-      id: 'support_NvqxrYIpOcYbGXLZhYEUjoPRZer2',
-      customerId: 'NvqxrYIpOcYbGXLZhYEUjoPRZer2',
-      customerName: 'Test User',
-      isSupportConversation: true
-    };
-    
-    console.log('🧪 Testing specific conversation load...');
-    console.log('📋 Test conversation:', testConversation);
-    
-    setSelectedConversation(testConversation);
-    loadMessages(testConversation.id);
-    
-    alert('Test conversation loaded! Check console for details.');
-  };
+  // Removed test-only conversation loader
 
-  // Auto-load support conversations function
-  const autoLoadSupportConversations = () => {
-    console.log('🔍 Auto-loading support conversations...');
-    
-    // Find all support conversations
-    const supportConversations = conversations.filter(conv => 
-      conv.id && conv.id.startsWith('support_')
-    );
-    
-    console.log('📋 Found support conversations:', supportConversations);
-    
-    if (supportConversations.length > 0) {
-      // Auto-select the first support conversation with unread messages
-      const unreadSupportConv = supportConversations.find(conv => (conv.unreadCount || 0) > 0);
-      const conversationToLoad = unreadSupportConv || supportConversations[0];
-      
-      console.log('🎯 Auto-selecting conversation:', conversationToLoad);
-      setSelectedConversation(conversationToLoad);
-      loadMessages(conversationToLoad.id);
-    }
-  };
+  // Removed duplicate auto-load helper used for testing
 
 
 
@@ -427,18 +294,18 @@ const Messages = () => {
               console.log('🔍 Processing conversation:', conversation.id, conversation);
               
               // Handle support conversations (conversations starting with 'support_')
-              if (conversation.id && conversation.id.startsWith('support_')) {
+              const isSupport = conversation.id && (conversation.id.startsWith('support_') || conversation.id.endsWith('_support'));
+              if (isSupport) {
                 // For support conversations, extract user ID from the conversation ID
-                // Format: support_USERID
-                const userId = conversation.id.replace('support_', '');
+                // Format could be: support_USERID or USERID_support
+                const rawId = conversation.id;
+                const userId = rawId.startsWith('support_')
+                  ? rawId.replace('support_', '')
+                  : rawId.replace('_support', '');
                 console.log('🎯 Support conversation found! User ID:', userId);
                 console.log('🔍 Full conversation data:', conversation);
                 
-                // Special check for the specific conversation
-                if (conversation.id === 'support_NvqxrYIpOcYbGXLZhYEUjoPRZer2') {
-                  console.log('🚨 FOUND THE SPECIFIC SUPPORT CONVERSATION!');
-                  console.log('📋 Conversation details:', JSON.stringify(conversation, null, 2));
-                }
+                // Removed specific conversation debug logs
                 
                 const user = users.find(u => u.id === userId);
                 console.log('👤 Found user for support conversation:', user);
@@ -620,10 +487,7 @@ const Messages = () => {
       console.log('📩 Loading messages for conversation:', conversationId);
       console.log('🔍 Conversation type:', conversationId.startsWith('support_') ? 'Support' : 'Regular');
       
-      // Special test for the specific conversation
-      if (conversationId === 'support_NvqxrYIpOcYbGXLZhYEUjoPRZer2') {
-        console.log('🚨 LOADING MESSAGES FOR THE SPECIFIC SUPPORT CONVERSATION!');
-      }
+      // Removed hardcoded test conversation check
       
       // Unsubscribe from previous messages subscription
       if (unsubscribeMessages.current) {
@@ -675,6 +539,7 @@ const Messages = () => {
       }
       
       // Subscribe to real-time messages for selected conversation
+      const customerId = selectedConversation?.customerId || null;
       unsubscribeMessages.current = messageService.subscribeToMessages(conversationId, (messagesData) => {
         console.log('📨 Received messages for conversation', conversationId, ':', messagesData);
         console.log('📊 Message count:', messagesData.length);
@@ -686,21 +551,13 @@ const Messages = () => {
           conversationId: msg.conversationId
         })));
         
-        // Filter messages to ensure they belong to current conversation only
-        const filteredMessages = messagesData.filter(msg => {
-          const belongsToConversation = msg.conversationId === conversationId;
-          console.log(`🔍 Message ${msg.id} belongs to ${conversationId}?`, belongsToConversation);
-          return belongsToConversation;
-        });
-        
-        console.log('🔍 Filtered messages:', filteredMessages);
+        // Since we're subscribed to the specific subcollection, all messages belong here.
+        // Some clients may not include `conversationId` inside each message document.
         console.log('🔄 Setting messages in state...');
-        
-        // Always set messages, even if empty
-        setMessages(filteredMessages);
-        
+        setMessages(messagesData);
+
         console.log('✅ Messages loaded successfully');
-      });
+      }, customerId);
     } catch (error) {
       console.error('Error loading messages:', error);
     }
@@ -885,127 +742,6 @@ const Messages = () => {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-3xl font-bold text-white">Messages</h1>
-          <button
-            onClick={testLoadSpecificConversation}
-            className="bg-yellow-500 text-white px-3 py-1 rounded text-sm hover:bg-yellow-600 transition-colors"
-          >
-            Test Load Support
-          </button>
-          <button
-            onClick={autoLoadSupportConversations}
-            className="bg-purple-500 text-white px-3 py-1 rounded text-sm hover:bg-purple-600 transition-colors"
-          >
-            Auto Load Support
-          </button>
-          <button
-            onClick={async () => {
-              const conversationId = 'support_NvqxrYIpOcYbGXLZhYEUjoPRZer2';
-              console.log('🧪 Testing message loading for Sathish conversation:', conversationId);
-              
-              // Check both structures
-              const result = await checkMessagesInBothStructures(conversationId);
-              console.log('🔍 Structure check result:', result);
-              
-              // Also try to load messages
-              await loadMessages(conversationId);
-            }}
-            className="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600 transition-colors"
-            title="Test Sathish conversation"
-          >
-            Test Sathish
-          </button>
-          <button
-            onClick={async () => {
-              console.log('🔍 Checking ALL conversations and their message locations...');
-              
-              // Get all conversations
-              const conversationsSnapshot = await getDocs(collection(db, 'conversations'));
-              const conversations = conversationsSnapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-              }));
-              
-              console.log(`📊 Found ${conversations.length} total conversations`);
-              
-              // Check each conversation
-              for (const conv of conversations) {
-                console.log(`\n🔍 Checking conversation: ${conv.id}`);
-                console.log(`👤 Customer: ${conv.customerName || conv.customerEmail || 'Unknown'}`);
-                
-                // Check subcollection
-                try {
-                  const subRef = collection(db, 'conversations', conv.id, 'messages');
-                  const subSnap = await getDocs(subRef);
-                  console.log(`  📊 Subcollection: ${subSnap.size} messages`);
-                } catch (e) {
-                  console.log(`  ❌ Subcollection: Error - ${e.message}`);
-                }
-                
-                // Check old structure
-                try {
-                  const oldQuery = query(
-                    collection(db, 'messages'),
-                    where('conversationId', '==', conv.id)
-                  );
-                  const oldSnap = await getDocs(oldQuery);
-                  console.log(`  📊 Old structure: ${oldSnap.size} messages`);
-                } catch (e) {
-                  console.log(`  ❌ Old structure: Error - ${e.message}`);
-                }
-              }
-              
-              console.log('\n✅ All conversations checked!');
-            }}
-            className="bg-orange-500 text-white px-3 py-1 rounded text-sm hover:bg-orange-600 transition-colors"
-            title="Check all conversations"
-          >
-            Check All
-          </button>
-          <button
-            onClick={debugCurrentConversation}
-            className="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600 transition-colors"
-            title="Debug current conversation"
-          >
-            Debug Current
-          </button>
-          <button
-            onClick={async () => {
-              if (!selectedConversation) {
-                alert('Please select a conversation first!');
-                return;
-              }
-              
-              const testMessage = {
-                conversationId: selectedConversation.id,
-                senderId: 'admin',
-                senderName: 'Admin',
-                senderType: 'admin',
-                message: 'Test message to check storage location',
-                recipientId: selectedConversation.customerId,
-                recipientName: selectedConversation.customerName
-              };
-              
-              console.log('🧪 Sending test message:', testMessage);
-              
-              try {
-                const messageId = await messageService.sendMessage(testMessage);
-                console.log('✅ Test message sent with ID:', messageId);
-                
-                // Check where it was stored
-                setTimeout(async () => {
-                  console.log('🔍 Checking where the message was stored...');
-                  await checkMessagesInBothStructures(selectedConversation.id);
-                }, 1000);
-                
-              } catch (error) {
-                console.error('❌ Error sending test message:', error);
-              }
-            }}
-            className="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600 transition-colors"
-            title="Send test message"
-          >
-            Send Test
-          </button>
           <div className="flex items-center space-x-4">
             {/* Notification Status */}
             <div className={`flex items-center space-x-2 px-3 py-2 rounded-lg ${
@@ -1187,8 +923,7 @@ const Messages = () => {
                       onClick={() => {
                         setMessages([]);
                         setSelectedConversation(conversation);
-                        // Check message structures when selecting conversation
-                        checkMessagesInBothStructures(conversation.id);
+                        // Removed test-only message structure check
                       }}
                       className={`p-4 border-b border-gray-700 cursor-pointer hover:bg-gray-700 transition-colors ${
                         selectedConversation?.id === conversation.id ? 'bg-gray-700' : ''
@@ -1260,17 +995,7 @@ const Messages = () => {
                           </button>
                         )}
                         
-                        {/* Debug Button to check message structure */}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            checkMessagesInBothStructures(conversation.id);
-                          }}
-                          className="bg-purple-600 hover:bg-purple-700 text-white p-1 rounded-full transition-colors ml-1"
-                          title="Check message structure"
-                        >
-                          <RefreshCw size={12} />
-                        </button>
+                        {/* Removed debug button */}
                       </div>
                     </div>
                   ))}

@@ -761,9 +761,12 @@ export const messageService = {
         timestamp: serverTimestamp(),
         status: 'sent'
       };
-      
-      const docRef = await addDoc(collection(db, 'messages'), message);
-      console.log('✅ Message sent with ID:', docRef.id);
+      // Write to new structure: conversations/{conversationId}/messages subcollection
+      const messagesRef = collection(db, 'conversations', messageData.conversationId, 'messages');
+      const docRef = await addDoc(messagesRef, message);
+      console.log('✅ Message sent to subcollection with ID:', docRef.id);
+      // Note: Do not mirror to users/{recipientId}/messages on client.
+      // Cloud Functions handle mirroring (conversation → user) to avoid duplicates and loops.
       
       // Update conversation with last message
       await this.updateConversation(messageData.conversationId, {
@@ -772,6 +775,56 @@ export const messageService = {
         lastMessageSender: messageData.senderId
       });
       
+      // Client-side fallback: If cloud function is not deployed or delayed,
+      // ensure user's direct chat receives the message by creating a mirrored copy.
+      // This block tries to detect an existing mirrored message and avoids duplicates.
+      try {
+        const userId = messageData.recipientId;
+        if (userId) {
+          const userMessagesRef = collection(db, 'users', userId, 'messages');
+
+          // Small delay to allow Cloud Function to mirror first
+          await new Promise((resolve) => setTimeout(resolve, 800));
+
+          // Check if cloud function already mirrored this conversation message
+          // We look for any doc tagged with mirroredFromConversation for this conversation
+          const existingMirrorsQuery = query(
+            userMessagesRef,
+            where('mirroredFromConversation', '==', messageData.conversationId),
+            limit(5)
+          );
+          const existingMirrorsSnap = await getDocs(existingMirrorsQuery);
+
+          const isAlreadyMirrored = existingMirrorsSnap.docs.some((d) => {
+            const data = d.data() || {};
+            // Match by message text and senderType 'admin' (what server mirror would set)
+            return (data.message === messageData.message) && (data.senderType === 'admin');
+          });
+
+          if (!isAlreadyMirrored) {
+            const fallbackPayload = {
+              ...message,
+              // Ensure it’s clearly marked to prevent user→conversation loop
+              mirroredFromConversation: messageData.conversationId,
+              mirroredAt: serverTimestamp(),
+              // Keep explicit admin identity
+              senderType: 'admin',
+              senderId: messageData.senderId || 'admin'
+            };
+
+            await addDoc(userMessagesRef, fallbackPayload);
+            console.log('🛟 Fallback mirrored message to user messages:', {
+              userId,
+              conversationId: messageData.conversationId
+            });
+          } else {
+            console.log('ℹ️ Cloud function mirror detected, skipping client fallback.');
+          }
+        }
+      } catch (fallbackErr) {
+        console.warn('⚠️ Fallback mirroring skipped due to error:', fallbackErr?.message || fallbackErr);
+      }
+
       console.log('✅ Conversation updated for ID:', messageData.conversationId);
       return docRef.id;
     } catch (error) {
@@ -808,7 +861,8 @@ export const messageService = {
   },
 
   // Listen to real-time messages
-  subscribeToMessages(conversationId, callback) {
+  // Optionally provide customerId to merge users/{customerId}/messages for non-support conversations
+  subscribeToMessages(conversationId, callback, customerId = null) {
     console.log('📡 Setting up message subscription for conversation:', conversationId);
     
     // Fallback function for old message structure
@@ -839,21 +893,75 @@ export const messageService = {
     try {
       const messagesRef = collection(db, 'conversations', conversationId, 'messages');
       const q = query(messagesRef, orderBy('timestamp', 'asc'));
-      
-      return onSnapshot(q, (querySnapshot) => {
+
+      // For support conversations, also subscribe to users/{userId}/messages and merge
+      const parseSupportUserId = (id) => {
+        if (!id || typeof id !== 'string') return null;
+        if (id.startsWith('support_')) return id.replace('support_', '');
+        if (id.endsWith('_support')) return id.replace('_support', '');
+        return null;
+      };
+
+      // If not a support-style ID, fall back to explicitly provided customerId
+      const supportUserId = parseSupportUserId(conversationId) || customerId;
+      let latestSubMessages = [];
+      let latestUserMessages = [];
+
+      const emitCombined = () => {
+        const combined = [...latestSubMessages, ...latestUserMessages];
+        // Sort by timestamp ascending when available
+        combined.sort((a, b) => {
+          const ta = a?.timestamp?.seconds || a?.timestamp?.toMillis?.() || 0;
+          const tb = b?.timestamp?.seconds || b?.timestamp?.toMillis?.() || 0;
+          return ta - tb;
+        });
+        console.log('📦 Emitting combined messages:', combined.length);
+        callback(combined);
+      };
+
+      const unsubSubcollection = onSnapshot(q, (querySnapshot) => {
         console.log('📨 Message snapshot received from subcollection:', querySnapshot.size, 'messages');
-        const messages = querySnapshot.docs.map(doc => {
+        latestSubMessages = querySnapshot.docs.map(doc => {
           const messageData = { id: doc.id, ...doc.data() };
           console.log('💬 Message data from subcollection:', messageData);
           return messageData;
         });
-        console.log('📋 All messages for conversation from subcollection:', messages);
-        callback(messages);
+        console.log('📋 All messages for conversation from subcollection:', latestSubMessages);
+        emitCombined();
       }, (error) => {
         console.error('❌ Error in subcollection message subscription:', error);
         // Fallback to old structure
         fallbackToOldMessageStructure(conversationId, callback);
       });
+
+      let unsubUserMessages = null;
+      if (supportUserId) {
+        try {
+          const userMessagesRef = collection(db, 'users', supportUserId, 'messages');
+          const uq = query(userMessagesRef, orderBy('timestamp', 'asc'));
+          unsubUserMessages = onSnapshot(uq, (querySnapshot) => {
+            console.log('👥 User messages snapshot received:', querySnapshot.size, 'messages for user', supportUserId);
+            latestUserMessages = querySnapshot.docs
+              .map(doc => {
+                const data = doc.data();
+                return { id: doc.id, conversationId, ...data };
+              })
+              // Only include messages actually sent by user to avoid duplicates
+              .filter(msg => msg.senderType === 'user');
+            emitCombined();
+          }, (error) => {
+            console.warn('⚠️ Error subscribing to user messages, continuing without merge:', error?.message);
+          });
+        } catch (userErr) {
+          console.warn('⚠️ Failed to setup user messages subscription:', userErr?.message);
+        }
+      }
+
+      // Return a composite unsubscribe
+      return () => {
+        try { unsubSubcollection && unsubSubcollection(); } catch (e) {}
+        try { unsubUserMessages && unsubUserMessages(); } catch (e) {}
+      };
     } catch (error) {
       console.error('❌ Error setting up subcollection subscription, falling back to old structure:', error);
       return fallbackToOldMessageStructure(conversationId, callback);
